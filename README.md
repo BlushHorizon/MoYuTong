@@ -23,6 +23,14 @@
 >
 > MIT © 2026 MoYuTong contributors · 创建于 2026 年 10 月
 
+## 🎬 60 秒宣传片
+
+[▶ 官网观看](https://blushhorizon.github.io/MoYuTong/#promo) · 视频源文件在 `site/assets/moyutong-promo.mp4`
+
+<video src="https://blushhorizon.github.io/MoYuTong/assets/moyutong-promo.mp4" controls muted loop playsinline width="100%"></video>
+
+> 配乐由 JS 合成器现场合成（120 BPM 合成波），画面 canvas 逐帧离格渲染——零素材、零剪辑软件。
+
 ## 亮点
 
 - **网页版 DeepSeek 直连，免 API Key**：不需要任何 Key，不产生任何 API 账单；用浏览器驱动（CDP）像人一样操作 DeepSeek 网页版。设置里可切换站点档案（新增站点 = 在 `server/web-sites.js` 加一条档案）

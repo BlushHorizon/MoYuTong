@@ -210,16 +210,21 @@ const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
 })();
 
-/* ---------- MV 滚到就播 ---------- */
+/* ---------- 视频滚到就播（宣传片 / MV / 教程通用） ---------- */
 (function mvAuto() {
-  const v = document.getElementById('mvVideo');
-  if (!v || REDUCED) return;
+  if (REDUCED) return;
+  const vs = Array.from(document.querySelectorAll('.mv-frame video'));
+  if (!vs.length) return;
   const io = new IntersectionObserver((es) => {
     for (const e of es) {
-      if (e.isIntersecting) { v.play().catch(() => {}); io.disconnect(); }
+      if (!e.isIntersecting) continue;
+      const v = e.target;
+      v.play().catch(() => {});
+      // 只让当前这一段播，避免多路解码
+      for (const s of vs) if (s !== v && !s.paused) s.pause();
     }
   }, { threshold: 0.35 });
-  io.observe(v);
+  vs.forEach((v) => io.observe(v));
 })();
 
 /* ---------- 复制（file:// 下 clipboard 不可用，走 execCommand 兜底） ---------- */

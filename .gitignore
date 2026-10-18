@@ -1,4 +1,4 @@
-# 运行期数据（聊天记录 / 表情包库 / 浏览器登录态 / 日志）——绝不进仓库
+﻿# 运行期数据（聊天记录 / 表情包库 / 浏览器登录态 / 日志）——绝不进仓库
 app/data/
 data/
 *.log
@@ -10,7 +10,10 @@ node_modules/
 
 # MV 中间产物（帧缓存与 headless 浏览器临时配置）
 mv/frames/
+mv/frames-promo/
 mv/.edge-profile/
+mv/.edge-profile-promo/
+mv/.edge-site/
 mv/.edge-redact/
 .mv-edge-*/
 
