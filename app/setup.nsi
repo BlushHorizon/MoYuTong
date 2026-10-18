@@ -68,8 +68,19 @@ Section "主程序" SecMain
 
   ; ---------- 复制程序文件 ----------
   ; 两行都写：覆盖带扩展名 / 无扩展名文件（Cookies、Local State 等）
-  File /r "dist\*"
-  File /r "dist\*.*"
+  ; 安全底线：改成「显式打包清单」，绝不使用 File /r "dist\*"
+  ; —— 之前 /r 会把 dist\data 里的浏览器配置（含 DeepSeek 登录 Cookie）
+  ;    和真实聊天记录 store.json 一起打进安装包，等于公开发布用户隐私。
+  CreateDirectory "$INSTDIR\data"
+  ; 注意：目录用 /r "dir"（不带通配）才会保留目录结构；带 * 会把文件拍平到根目录
+  File /r "dist\server"
+  File /r "dist\public"
+  File /r "dist\assets"
+  File "dist\*.bat"
+  File /nonfatal "dist\launcher.ps1"
+  File /nonfatal "dist\README.md"
+  File /nonfatal "dist\config.json"
+  File /nonfatal "dist\setup.nsi"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; ---------- 还原用户数据（包内 data 只是全新安装的种子） ----------
