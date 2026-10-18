@@ -136,6 +136,8 @@ details p { color: var(--dim); font-size: 14.5px; padding: 0 0 16px; }
 .group-card h2 { font-size: 26px; }
 .group-card p { color: var(--dim); margin-top: 6px; }
 .group-side { display: flex; align-items: center; gap: 14px; }
+.group-label { color: var(--dim); font-size: 14px; }
+.group-code { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--violet); text-shadow: 0 0 16px rgba(139, 123, 255, 0.4); letter-spacing: 1px; }
 .group-num { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--cyan); text-shadow: 0 0 18px rgba(53, 200, 255, 0.4); letter-spacing: 2px; }
 
 /* 页脚 */

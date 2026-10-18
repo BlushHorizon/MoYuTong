@@ -1,12 +1,12 @@
 'use strict';
-/* 复制 QQ 群号（file:// 下 clipboard API 不可用，走 execCommand 兜底） */
-function copyGroup() {
-  const text = '1128593359';
-  const btn = document.getElementById('btnCopyGroup');
+/* 复制文本（file:// 下 clipboard API 不可用，走 execCommand 兜底） */
+function copyText(text, btnId) {
+  const btn = document.getElementById(btnId);
+  const old = btn ? btn.textContent : '';
   const done = () => {
     if (!btn) return;
     btn.textContent = '已复制 ✓';
-    setTimeout(() => { btn.textContent = '复制群号'; }, 1600);
+    setTimeout(() => { btn.textContent = old; }, 1600);
   };
   const fallback = () => {
     const ta = document.createElement('textarea');
@@ -14,7 +14,7 @@ function copyGroup() {
     ta.style.cssText = 'position:fixed;left:-9999px';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { alert('群号：1128593359'); }
+    try { document.execCommand('copy'); done(); } catch (e) { alert(text); }
     ta.remove();
   };
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done).catch(fallback);
