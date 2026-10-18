@@ -362,6 +362,22 @@ class DeepSeekWeb {
   }
 
   /**
+   * 轮询等待输入框出现（页面刚加载/刷新后 React 可能还没挂载完）
+   * @param {number} timeoutMs
+   * @returns {Promise<boolean>} 是否等到
+   */
+  async _waitForInput(timeoutMs = 12000) {
+    const sel = JSON.stringify(this.site.input);
+    const until = Date.now() + timeoutMs;
+    while (Date.now() < until) {
+      const has = await this._evaluate(`!!document.querySelector(${sel})`, 5000).catch(() => false);
+      if (has) return true;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return false;
+  }
+
+  /**
    * 填入并发送，然后等回答稳定
    * @param {string} text
    * @param {boolean} capture true=返回回答；false=只等它跑完（用于发提示词）
@@ -373,6 +389,10 @@ class DeepSeekWeb {
       this._set('thinking', '正在上传图片…');
       await this._uploadImages(images);
     }
+
+    // 等输入框就位：刚打开/刷新页面时 React 还没挂载完，立刻找 selector 会扑空（no-input），
+    // 这里最多等 12 秒再放弃
+    await this._waitForInput(12000);
 
     // 填入：先聚焦+全选，再 CDP 原生输入（React 受控组件下 Input.insertText 稳定生效，
     // 旧的 value setter 方案会被重渲染吃掉）
