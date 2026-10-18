@@ -1,7 +1,8 @@
 ﻿;=====================================================
-;  QQ 网页版 · 安装程序 (NSIS Unicode)
-;  编译: makensis.exe setup.nsi   (在项目根目录执行)
-;  默认安装到 D:\QQ网页版，附 开启.bat / 关闭.bat
+;  摸鱼瞳 MoYuTong · 安装程序 (NSIS Unicode)
+;  编译: 先 node precheck-package.js（隐私闸门，必须 exit 0）
+;        再 makensis.exe setup.nsi   (在项目根目录执行)
+;  默认安装到 D:\摸鱼瞳，附 开启.bat / 关闭.bat
 ;=====================================================
 Unicode true
 SetCompressor /SOLID lzma
