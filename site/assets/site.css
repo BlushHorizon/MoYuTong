@@ -128,6 +128,16 @@ details p { color: var(--dim); font-size: 14.5px; padding: 0 0 16px; }
 .mv-box video { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; display: block; background: #000; }
 .mv-box .fine { margin-top: 12px; }
 
+/* QQ 群 */
+.group-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 30px 38px;
+}
+.group-card h2 { font-size: 26px; }
+.group-card p { color: var(--dim); margin-top: 6px; }
+.group-side { display: flex; align-items: center; gap: 14px; }
+.group-num { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--cyan); text-shadow: 0 0 18px rgba(53, 200, 255, 0.4); letter-spacing: 2px; }
+
 /* 页脚 */
 footer { border-top: 1px solid var(--line); margin-top: 60px; }
 .foot { display: flex; justify-content: space-between; align-items: center; padding: 22px 24px; color: var(--dim); font-size: 13.5px; }

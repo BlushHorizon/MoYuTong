@@ -1,4 +1,25 @@
 'use strict';
+/* 复制 QQ 群号（file:// 下 clipboard API 不可用，走 execCommand 兜底） */
+function copyGroup() {
+  const text = '1128593359';
+  const btn = document.getElementById('btnCopyGroup');
+  const done = () => {
+    if (!btn) return;
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => { btn.textContent = '复制群号'; }, 1600);
+  };
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { alert('群号：1128593359'); }
+    ta.remove();
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done).catch(fallback);
+  else fallback();
+}
 /* 深瞳官网交互：星空网格背景、打字机、滚动出现、悬浮表情包装饰 */
 (function () {
   /* ---------- 背景：合成波网格 + 粒子 ---------- */
