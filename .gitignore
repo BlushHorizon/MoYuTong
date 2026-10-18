@@ -8,17 +8,29 @@ stdin.empty
 # 依赖（本项目零运行时依赖，留个口子）
 node_modules/
 
-# MV 中间产物（帧缓存与 headless 浏览器临时配置）
+# 浏览器配置目录（内含已登录会话 Cookies，绝不能进仓库）
+deepseek_profile/
+.edge-*/
+edge-prev2/
+**/Default/Cookies
+**/Login Data
+**/Local State
+
+# MV 中间产物（帧缓存、headless 浏览器临时配置）
 mv/frames/
 mv/frames-promo/
 mv/.edge-profile/
 mv/.edge-profile-promo/
 mv/.edge-site/
-mv/.edge-redact/
-.mv-edge-*/
 
-# 浏览器/系统杂项
+# 浏览器 / 系统杂项
 Thumbs.db
 desktop.ini
 .DS_Store
 *.lnk
+
+# ── 说明 ──
+# app/config.json 与 app/dist/config.json 是「空白模板」，是给新用户用的，必须保持被追踪。
+# 任何时候都不要把本机真实配置（含 accessToken / 真实 QQ 号 / 真实群号）复制进这两个文件——
+# 打包闸门 precheck-package.js 会拦住，但根子上别这么干。
+# 你自己的真实配置只存在于 D:\摸鱼瞳\config.json，不进仓库、不进归档。
