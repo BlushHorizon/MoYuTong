@@ -1,4 +1,4 @@
-/* 摸鱼瞳 MOYUTONG 官网 —— 全幅横幅 · 深色遮罩 · 品牌色点缀（骨架参考 NANFU 那种企业站排版） */
+﻿/* 摸鱼瞳 MOYUTONG 官网 —— 全幅横幅 · 深色遮罩 · 品牌色点缀（骨架参考 NANFU 那种企业站排版） */
 :root {
   --ink: #05070b;        /* 最深黑 */
   --ink2: #0b0e14;       /* 次黑 */
@@ -253,3 +253,24 @@ footer { border-top: 1px solid var(--line); background: var(--ink); }
   .nav nav a:not(.nav-cta) { display: none; }
   .numbers { grid-template-columns: repeat(2, 1fr); row-gap: 34px; }
 }
+/* ---------------- 免责声明 ---------------- */
+.decl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 40px; }
+.decl-card { position: relative; background: rgba(255, 209, 102, .045); border: 1px solid rgba(255, 209, 102, .2); border-radius: 8px; padding: 26px 24px 22px; }
+.decl-card h3 { font-size: 18px; font-weight: 700; color: #ffd166; margin-bottom: 10px; }
+.decl-card p { color: var(--dim); font-size: 14px; line-height: 1.8; }
+.decl-card p b { color: #eef2f7; }
+.decl-card p code { font-family: var(--mono); font-size: 12.5px; background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 4px; }
+.decl-no { position: absolute; top: 20px; right: 22px; font-family: var(--mono); font-size: 13px; color: rgba(255, 209, 102, .45); letter-spacing: 2px; }
+.decl-foot { margin-top: 30px; padding-top: 20px; border-top: 1px dashed rgba(255, 255, 255, .14); font-size: 14px; color: var(--dim); }
+.decl-foot p { margin: 0 0 8px; }
+.decl-foot b { color: #eef2f7; }
+/* ---------------- 下载区提示 ---------------- */
+.dl-note {
+  flex: 0 0 100%;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #ffb08a;
+}
+.dl-note b { color: #ff8a5c; }
+.dl-note a { color: var(--blue2, #6aa4ff); text-decoration: underline; text-underline-offset: 3px; }
