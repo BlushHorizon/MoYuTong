@@ -9,6 +9,9 @@
 </head>
 <body>
 
+<!-- 顶部滚动进度 -->
+<div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
+
 <header class="nav">
   <div class="wrap nav-in">
     <a class="logo" href="#top">摸鱼瞳 <b>MOYUTONG</b></a>
@@ -24,6 +27,12 @@
 
 <!-- HERO：全幅横幅 -->
 <section class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="grid-floor"></div>
+    <canvas id="flowCanvas"></canvas>
+    <div class="hero-veil"></div>
+  </div>
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
   <div class="wrap hero-in">
     <div class="hero-copy">
       <p class="kicker">LOCAL · PRIVATE · NO API FEE</p>
@@ -51,17 +60,17 @@
     <p class="kicker">CAPABILITIES</p>
     <h2 class="band-title">三件事，做到极致</h2>
     <div class="tiles">
-      <article class="tile reveal">
+      <article class="tile reveal tilt">
         <span class="tile-no">01</span>
         <h3>接得住话</h3>
         <p>网页版 DeepSeek 直连，免 Key 免 API 费。群聊需 @ 才回、关键词过滤、主动回复概率、引用原消息——每条规矩都能在面板里调。</p>
       </article>
-      <article class="tile reveal">
+      <article class="tile reveal tilt">
         <span class="tile-no">02</span>
         <h3>抖得出梗</h3>
         <p>自动收藏来信里的表情包并下载本地副本（QQ 图链会过期，本地副本不会）。AI 按专属提示词自主发表情包，三连打包成一条消息，不刷屏。</p>
       </article>
-      <article class="tile reveal">
+      <article class="tile reveal tilt">
         <span class="tile-no">03</span>
         <h3>收得住心</h3>
         <p>数据全在本机，无任何遥测；免打扰时段自动闭嘴，主人随时用 /状态 /暂停 /帮助 远程接管。看图回复、零依赖，一个安装包双击即用。</p>
@@ -73,10 +82,10 @@
 <!-- 数字带 -->
 <section class="band band-dark">
   <div class="wrap numbers">
-    <div><b>2.4 MB</b><span>安装包 · 双击即用</span></div>
-    <div><b>0 元</b><span>无 API 费</span></div>
-    <div><b>93 项</b><span>自动测试全绿</span></div>
-    <div><b>50 轮</b><span>自动开新对话</span></div>
+    <div class="reveal"><b data-count="2.4" data-dec="1">0</b><i>MB</i><span>安装包 · 双击即用</span><u class="fill"></u></div>
+    <div class="reveal"><b data-count="0">0</b><i>元</i><span>无 API 费</span><u class="fill"></u></div>
+    <div class="reveal"><b data-count="93">0</b><i>项</i><span>自动测试全绿</span><u class="fill"></u></div>
+    <div class="reveal"><b data-count="50">0</b><i>轮</i><span>自动开新对话</span><u class="fill"></u></div>
   </div>
 </section>
 
@@ -120,6 +129,7 @@
     <p class="band-sub">配乐由 JS 合成器现场合成（120 BPM 合成波），画面 canvas 逐帧离格渲染——零素材、零剪辑软件。片里飞的都是摸鱼瞳自己收的表情包。</p>
     <div class="mv-frame reveal">
       <video id="mvVideo" controls muted loop playsinline preload="metadata" poster="assets/mv-poster.jpg" src="assets/moyutong-mv.mp4"></video>
+      <div class="mv-scan" aria-hidden="true"></div>
       <p class="fine center">点播放器音量键开声音 · 歌词字幕在画面里</p>
     </div>
   </div>
@@ -131,9 +141,9 @@
     <p class="kicker">QUICK START</p>
     <h2 class="band-title">三步开跑</h2>
     <ol class="steps">
-      <li><b>下载安装</b><span>运行安装包，默认装到 D:\摸鱼瞳；覆盖安装不会丢数据。</span></li>
-      <li><b>接上 QQ</b><span>启动任意 OneBot 11 机器人端（SnowLuma / NapCat 等），在面板里填 WS 地址 ws://127.0.0.1:3001。</span></li>
-      <li><b>登录大脑</b><span>双击「开启.bat」，面板点「① 打开该网站」扫码登录一次 DeepSeek，之后它自己开工。</span></li>
+      <li class="reveal"><b>下载安装</b><span>运行安装包，默认装到 D:\摸鱼瞳；覆盖安装不会丢数据。</span></li>
+      <li class="reveal"><b>接上 QQ</b><span>启动任意 OneBot 11 机器人端（SnowLuma / NapCat 等），在面板里填 WS 地址 ws://127.0.0.1:3001。</span></li>
+      <li class="reveal"><b>登录大脑</b><span>双击「开启.bat」，面板点「① 打开该网站」扫码登录一次 DeepSeek，之后它自己开工。</span></li>
     </ol>
   </div>
 </section>
@@ -144,11 +154,11 @@
     <p class="kicker">FAQ</p>
     <h2 class="band-title">你可能想问的</h2>
     <div class="faq">
-      <details><summary>需要 API Key 吗？</summary><p>不需要。默认直接驱动 DeepSeek 网页版（免 Key、免 API 费）。如果你有 OpenAI 兼容的 Key，面板里也能填，走 API 模式。</p></details>
-      <details><summary>会不会被 QQ 风控？</summary><p>高频发消息/发图是风控大头。摸鱼瞳内置最小回复间隔、表情包批量单条、40 秒冷却、免打扰时段；但请自行控制频率、遵守平台规则，<b>请勿用于骚扰</b>，建议用小号。</p></details>
-      <details><summary>表情包哪来的？</summary><p>自动收集所有进来的消息：商城表情与图片都入库，并下载本地副本。面板里可以逐条删除或一键清空。</p></details>
-      <details><summary>数据在哪？安全吗？</summary><p>全在本机：D:\摸鱼瞳\data（配置、日志、表情包库、浏览器登录态）。<b>没有任何遥测与联网上传</b>。</p></details>
-      <details><summary>成本？</summary><p>0 元。安装包 2.4 MB，运行时全本地。</p></details>
+      <details class="reveal"><summary>需要 API Key 吗？</summary><p>不需要。默认直接驱动 DeepSeek 网页版（免 Key、免 API 费）。如果你有 OpenAI 兼容的 Key，面板里也能填，走 API 模式。</p></details>
+      <details class="reveal"><summary>会不会被 QQ 风控？</summary><p>高频发消息/发图是风控大头。摸鱼瞳内置最小回复间隔、表情包批量单条、40 秒冷却、免打扰时段；但请自行控制频率、遵守平台规则，<b>请勿用于骚扰</b>，建议用小号。</p></details>
+      <details class="reveal"><summary>表情包哪来的？</summary><p>自动收集所有进来的消息：商城表情与图片都入库，并下载本地副本。面板里可以逐条删除或一键清空。</p></details>
+      <details class="reveal"><summary>数据在哪？安全吗？</summary><p>全在本机：D:\摸鱼瞳\data（配置、日志、表情包库、浏览器登录态）。<b>没有任何遥测与联网上传</b>。</p></details>
+      <details class="reveal"><summary>成本？</summary><p>0 元。安装包 2.4 MB，运行时全本地。</p></details>
     </div>
   </div>
 </section>
@@ -162,7 +172,7 @@
       <p class="band-sub">默认装到 D:\摸鱼瞳 · 覆盖安装保留数据 · 系统要求：Windows 10/11 + Edge/Chrome + 一台 QQ（建议小号）+ 任意 OneBot 11 机器人端</p>
     </div>
     <div class="cta">
-      <a class="btn btn-big" href="assets/摸鱼瞳MoYuTong安装包.exe" download>立即下载</a>
+      <a class="btn btn-big btn-shine" href="assets/摸鱼瞳MoYuTong安装包.exe" download>立即下载</a>
       <div class="grp">
         <span class="grp-k">QQ 群 1128593359 · 暗号 moyutong520</span>
         <button class="btn btn-line btn-sm" id="btnCopyGroup" onclick="copyText('1128593359', 'btnCopyGroup')">复制群号</button>
@@ -178,6 +188,8 @@
     <span class="fine">本项目与 QQ / DeepSeek 官方无关 · 请勿用于骚扰 · <a href="#top">回到顶部</a></span>
   </div>
 </footer>
+
+<div class="grain" aria-hidden="true"></div>
 
 <script src="assets/site.js"></script>
 </body>
