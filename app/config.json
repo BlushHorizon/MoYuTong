@@ -1,0 +1,42 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8787
+  },
+  "qq": {
+    "mode": "mock",
+    "onebot": {
+      "wsUrl": "ws://127.0.0.1:3001",
+      "accessToken": ""
+    }
+  },
+  "ai": {
+    "enabled": false,
+    "provider": "deepseek-web",
+    "cdpPort": 9222,
+    "browserPath": "",
+    "webPrompt": "",
+    "webMaxRounds": 50,
+    "baseUrl": "https://api.deepseek.com",
+    "apiKey": "",
+    "model": "deepseek-chat",
+    "systemPrompt": "你是「网页版 QQ 助手」，正在通过 QQ 与好友聊天。要求：中文回复、简洁自然、不要用 Markdown 语法、不要自称 AI 模型、长度控制在 100 字以内。",
+    "scope": "all",
+    "replyMode": "all",
+    "targetChatKey": "",
+    "targetChatKeys": [],
+    "requireMentionInGroup": false,
+    "groupReplyChance": 100,
+    "groupKeywords": "",
+    "quietEnabled": false,
+    "quietFrom": "23:00",
+    "quietTo": "08:00",
+    "commandSenders": "",
+    "imageReply": true,
+    "groupAtSender": true,
+    "groupQuote": true,
+    "minIntervalMs": 2500,
+    "historyTurns": 8,
+    "replyDelayMs": 900
+  }
+}

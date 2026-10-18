@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>深瞳 DeepPupil · 你 QQ 背后的 AI 搭子</title>
+<meta name="description" content="深瞳 DeepPupil：本地运行的 QQ AI 智能体。网页版大模型直连（DeepSeek / 千问 / Kimi / 小米 MiMo），免 API Key；AI 会自己发表情包；指定会话多选回复。Windows 双击即用。" />
+<link rel="stylesheet" href="assets/site.css" />
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="#top"><span class="dot"></span>深瞳 <b>DeepPupil</b></a>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#models">模型</a>
+      <a href="#look">界面</a>
+      <a href="#mv">MV</a>
+      <a href="#start">上手</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="assets/深瞳DeepPupil安装包.exe" download>⬇ 下载 2.4 MB</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="kicker">本地运行 · 免 API Key · 数据不出机</p>
+      <h1>你 QQ 背后的 <span class="grad">AI 搭子</span></h1>
+      <p class="lede">深瞳接管你 QQ 的消息流：按你定的规矩替你回复，<b>还会自己发表情包</b>。
+        大脑直接用网页版大模型 —— DeepSeek / 通义千问 / Kimi / 小米 MiMo 随便切，不花 API 费。</p>
+      <p class="typed-line"></p>
+      <div class="cta">
+        <a class="btn btn-primary" href="assets/深瞳DeepPupil安装包.exe" download>⬇ 立即下载（Windows · 2.4 MB）</a>
+        <a class="btn btn-ghost" href="#start">三步上手 →</a>
+      </div>
+      <p class="fine">默认安装到 D:\深瞳 · 双击「开启.bat」即用 · 数据全部留在本机</p>
+    </div>
+  </section>
+
+  <!-- 痛点 -->
+  <section class="wrap sec">
+    <div class="grid3 reveal">
+      <article class="card">
+        <div class="ico">💬</div>
+        <h3>群消息刷太快</h3>
+        <p>不是每条都要你亲自回。让深瞳盯着：@ 它才回、命中关键词才回、闲时按概率冒泡。</p>
+      </article>
+      <article class="card">
+        <div class="ico">😹</div>
+        <h3>想要个有梗的搭子</h3>
+        <p>专属「表情包能力」提示词教它何时发、怎么接梗。它会自己发表情包，三连都行。</p>
+      </article>
+      <article class="card">
+        <div class="ico">💸</div>
+        <h3>API 按量计费</h3>
+        <p>直接驱动网页版大模型：<b>免 Key、免 API 费</b>。登录一次，登录态存在你自己的浏览器目录里。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 功能 -->
+  <section class="wrap sec" id="features">
+    <h2 class="sec-title reveal">它能干什么</h2>
+    <div class="grid2 reveal">
+      <article class="card">
+        <div class="ico">🧠</div>
+        <h3>网页版大模型直连</h3>
+        <p>DeepSeek、通义千问、Kimi、小米 MiMo 四套站点档案，一键切换；同话题随时换大脑，上下文不乱。有 OpenAI 兼容 Key 也能走 API。</p>
+      </article>
+      <article class="card">
+        <div class="ico">🖼️</div>
+        <h3>表情包引擎（核心）</h3>
+        <p>自动收藏所有来信里的商城表情/图片，存本地副本永不过期；AI 回复里写标记就自动发表情包，一条消息打包多个，不会刷屏。后台可视化增删。</p>
+      </article>
+      <article class="card">
+        <div class="ico">🎯</div>
+        <h3>只回该回的人</h3>
+        <p>「指定会话」可多选：选中的会话全部回复，其他一律不回；一个都不选 = 全部回复。私聊、群聊混选都行。</p>
+      </article>
+      <article class="card">
+        <div class="ico">👥</div>
+        <h3>群聊规矩全套</h3>
+        <p>群聊需 @ 才回、关键词过滤、非 @ 主动回复概率、自动 @ 触发者、引用原消息 —— 每条都能在面板里拧。</p>
+      </article>
+      <article class="card">
+        <div class="ico">👀</div>
+        <h3>看图回复</h3>
+        <p>收到图片自动下载，交给 DeepSeek 看图后再回（可关）。表情包也照收不误。</p>
+      </article>
+      <article class="card">
+        <div class="ico">🌙</div>
+        <h3>免打扰 + 远程指令</h3>
+        <p>设定时段自动闭嘴；主人在 QQ 里发 /状态 /暂停 /帮助 即可管理，指令不受免打扰限制。</p>
+      </article>
+      <article class="card">
+        <div class="ico">📊</div>
+        <h3>实时监控台</h3>
+        <p>网页看板实时推送消息与回复（SSE）：连接状态、今日收发、会话概览、逐条动态，全在浏览器里。</p>
+      </article>
+      <article class="card">
+        <div class="ico">🧩</div>
+        <h3>干净利落</h3>
+        <p>没有插件、没有商城、没有花里胡哨。一个安装包 2.4 MB，装完就是「开启.bat」。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- 模型 -->
+  <section class="wrap sec" id="models">
+    <h2 class="sec-title reveal">四个网页版大脑，一键切</h2>
+    <p class="sec-sub reveal">同一套浏览器驱动，按站点档案跑；登录态保存在本机浏览器目录，重启不丢。</p>
+    <div class="grid4 reveal" id="modelCards">
+      <article class="card model" style="--c:#35c8ff"><h3>DeepSeek</h3><p>免 Key 网页版 · 支持看图</p></article>
+      <article class="card model" style="--c:#ff8a3d"><h3>通义千问</h3><p>阿里账号登录一次</p></article>
+      <article class="card model" style="--c:#6fd0ff"><h3>Kimi</h3><p>月之暗面账号</p></article>
+      <article class="card model" style="--c:#ff5fa2"><h3>小米 MiMo</h3><p>MiMo-V2.6-Pro 演示平台</p></article>
+    </div>
+    <p class="fine center reveal">另有「OpenAI 兼容 API」模式：任何兼容接口（本地 Ollama、中转站、各家 API）填 baseUrl + Key + model 即可。</p>
+  </section>
+
+  <!-- 界面 -->
+  <section class="wrap sec" id="look">
+    <h2 class="sec-title reveal">长这样</h2>
+    <div class="shots reveal">
+      <figure>
+        <img src="assets/shot-dashboard.png" alt="深瞳监控台主界面" loading="lazy" />
+        <figcaption>监控台：连接状态、今日收发、会话概览，一眼看清</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/shot-stickers.png" alt="表情包管理面板" loading="lazy" />
+        <figcaption>表情包后台：缩略图逐条管理，随手删、随手清</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- MV -->
+  <section class="wrap sec" id="mv">
+    <h2 class="sec-title reveal">深瞳 MV</h2>
+    <p class="sec-sub reveal">这首歌和这支片子都是程序生成的：配乐由 JS 合成器现场合成（120 BPM 合成波），画面 canvas 逐帧离格渲染后合成视频——零素材、零剪辑软件。片里飞的都是深瞳自己收藏的表情包。</p>
+    <div class="mv-box reveal">
+      <video id="mvVideo" controls muted loop playsinline preload="metadata" poster="assets/mv-poster.jpg" src="assets/deeppupil-mv.mp4"></video>
+      <p class="fine center">▶ 有声音：点播放器里的音量键 · 歌词字幕在画面里</p>
+    </div>
+  </section>
+
+  <!-- 上手 -->
+  <section class="wrap sec" id="start">
+    <h2 class="sec-title reveal">三步开跑</h2>
+    <ol class="steps reveal">
+      <li><b>下载安装</b><span>运行安装包，默认装到 D:\深瞳（覆盖安装不会丢数据）</span></li>
+      <li><b>接上 QQ</b><span>启动任意 OneBot 11 机器人端（如 SnowLuma / NapCat），面板里填 WS 地址 ws://127.0.0.1:3001</span></li>
+      <li><b>登录大脑</b><span>双击「开启.bat」，面板点「① 打开该网站」扫码登录一次大模型网页版，之后它就自己开工了</span></li>
+    </ol>
+    <div class="center">
+      <a class="btn btn-primary" href="assets/深瞳DeepPupil安装包.exe" download>⬇ 下载 深瞳DeepPupil安装包.exe（2.4 MB）</a>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="wrap sec" id="faq">
+    <h2 class="sec-title reveal">常见问题</h2>
+    <div class="faq reveal">
+      <details><summary>需要 API Key 吗？</summary><p>不需要。默认走网页版大模型（免 Key、免 API 费）。如果你手里有 OpenAI 兼容的 Key，面板里也能填，走 API 模式。</p></details>
+      <details><summary>会不会被 QQ 风控/封号？</summary><p>高频发消息/发图是风控大头，深瞳内置：回复最小间隔、表情包批量打包成一条消息、40 秒表情冷却、免打扰时段。建议用小号，遵守平台规则，个人自用。</p></details>
+      <details><summary>表情包哪来的？</summary><p>自动收集所有进来的消息：商城表情（mface）与图片都会入库，并下载本地副本（QQ 图链会过期，本地副本不会）。面板里可以逐条删除或一键清空。</p></details>
+      <details><summary>它会乱说话吗？</summary><p>提示词（人设）在面板里写死给你，每段新对话自动发一次；群里还有 @ 规则、关键词过滤、概率回复替你兜底。</p></details>
+      <details><summary>数据在哪？安全吗？</summary><p>全在本机：D:\深瞳\data（配置、日志、表情包库、浏览器登录态）。不联网上传任何聊天内容。</p></details>
+      <details><summary>换模型会丢上下文吗？</summary><p>会开一段新对话并自动重发完整提示词（含表情包能力段），就像你在网页上按了「新对话」。想立刻生效点面板上的「② 新建对话」。</p></details>
+      <details><summary>成本？</summary><p>0 元。安装包 2.4 MB，运行全本地。</p></details>
+    </div>
+  </section>
+
+  <!-- 下载 -->
+  <section class="wrap sec" id="download">
+    <div class="dl reveal">
+      <div>
+        <h2>深瞳 DeepPupil</h2>
+        <p>Windows 安装包 · 2.4 MB · 默认 D:\深瞳 · 覆盖安装保留数据</p>
+        <p class="fine">系统要求：Windows 10/11 + Edge/Chrome + 一台 QQ（建议小号）+ 任意 OneBot 11 机器人端</p>
+      </div>
+      <a class="btn btn-primary btn-lg" href="assets/深瞳DeepPupil安装包.exe" download>⬇ 立即下载</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>深瞳 DeepPupil · 本地 QQ AI 智能体</span>
+    <a href="#top">回到顶部 ↑</a>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

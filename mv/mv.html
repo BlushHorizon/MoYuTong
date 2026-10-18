@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>深瞳 DeepPupil · MV</title>
+<style>
+  html, body { margin: 0; background: #05070d; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  canvas { box-shadow: 0 0 80px rgba(53, 200, 255, .18); }
+  #bar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+  button { background: #0e1626; color: #9fb6d0; border: 1px solid #24405e; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="cv" width="1280" height="720"></canvas>
+<div id="bar">
+  <button onclick="play()">▶ 播放（含音乐）</button>
+  <button onclick="window.__seek(16)">跳到副歌</button>
+</div>
+<audio id="au" src="out/music.wav"></audio>
+<script>
+'use strict';
+/* 深瞳 MV —— canvas 2D 确定性渲染：renderAt(t) 画第 t 秒，导出视频用离格渲染 */
+const W = 1280, H = 720;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const au = document.getElementById('au');
+const DUR = 36;
+
+const STICKERS = ['assets/s1.jpg','assets/s2.jpg','assets/s3.jpg','assets/s4.jpg','assets/s5.jpg','assets/s6.jpg',
+  'assets/s7.jpg','assets/s8.jpg','assets/s10.jpg','assets/s11.png','assets/s12.jpg']
+  .map((src, i) => { const im = new Image(); im.src = src; return im; });
+const ready = Promise.all(STICKERS.map((im) => im.decode ? im.decode().catch(() => {}) : null));
+
+const CY = '#35c8ff', VI = '#8b7bff', PK = '#ff5fa2', TXT = '#dcecff', DIM = '#7f96b3';
+
+/* ---------- 基础工具 ---------- */
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+const lerp = (a, b, x) => a + (b - a) * x;
+function seg(t, a, b) { return clamp01((t - a) / (b - a)); }          // 段落进度
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function glowText(txt, x, y, size, color, { align = 'center', weight = 700, glow = 18, alpha = 1, font = '"Microsoft YaHei"', maxW = 0 } = {}) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `${weight} ${size}px ${font}, sans-serif`;
+  ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.shadowColor = color; ctx.shadowBlur = glow;
+  ctx.fillStyle = color; ctx.fillText(txt, x, y, maxW || undefined);
+  ctx.shadowBlur = glow * 0.5; ctx.fillText(txt, x, y, maxW || undefined);
+  ctx.restore();
+}
+function mono(txt, x, y, size, color, alpha = 1, align = 'left', maxW = 0) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `600 ${size}px Consolas, "Cascadia Mono", monospace`;
+  ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.fillText(txt, x, y, maxW || undefined);
+  ctx.restore();
+}
+function gridFloor(t, alpha = 0.16) {
+  ctx.save();
+  ctx.strokeStyle = CY; ctx.globalAlpha = alpha; ctx.lineWidth = 1;
+  const off = (t * 60) % 80;
+  for (let x = -640; x <= 640; x += 80) {
+    ctx.beginPath(); ctx.moveTo(W / 2 + x, 380); ctx.lineTo(W / 2 + x * 4.2, H); ctx.stroke();
+  }
+  for (let i = 0; i < 14; i++) {
+    const y = 380 + Math.pow((i + ((t * 0.5) % 1)) / 14, 2.1) * (H - 380);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+function scanlines(alpha = 0.05) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#000';
+  for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1.6);
+  ctx.restore();
+}
+function vignette(a = 0.5) {
+  const g = ctx.createRadialGradient(W / 2, H / 2, 240, W / 2, H / 2, 760);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function bg(t) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const hue = 210 + Math.sin(t * 0.15) * 14;
+  g.addColorStop(0, `hsl(${hue},42%,7%)`);
+  g.addColorStop(0.55, `hsl(${hue + 8},38%,5%)`);
+  g.addColorStop(1, '#04060b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function glitch(txt, x, y, size, color, seed, amount, maxW = 0) {
+  if (amount <= 0.01) { glowText(txt, x, y, size, color, { maxW }); return; }
+  const r = (i) => Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453 % 1;
+  glowText(txt, x + r(1) * amount * 14, y, size, PK, { alpha: 0.75, maxW });
+  glowText(txt, x - r(2) * amount * 14, y, size, CY, { alpha: 0.75, maxW });
+  glowText(txt, x, y, size, color, { maxW });
+}
+function sticker(im, x, y, size, rot = 0, alpha = 1) {
+  if (!im || !im.width) return;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rot);
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6;
+  rr(-size / 2, -size / 2, size, size, 14); ctx.clip();
+  const s = Math.max(size / im.width, size / im.height);
+  ctx.drawImage(im, -im.width * s / 2, -im.height * s / 2, im.width * s, im.height * s);
+  ctx.restore();
+}
+/* 聊天气泡 */
+function bubble(text, name, x, y, alpha, mine = false) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  const w = 300, h = 54;
+  const bx = x - (mine ? w : 0);
+  ctx.fillStyle = mine ? 'rgba(139,123,255,.20)' : 'rgba(20,34,54,.88)';
+  ctx.strokeStyle = mine ? 'rgba(139,123,255,.55)' : 'rgba(53,200,255,.35)';
+  ctx.lineWidth = 1.4; ctx.shadowColor = 'rgba(53,200,255,.25)'; ctx.shadowBlur = 14;
+  rr(bx, y, w, h, 14); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  mono(name, mine ? bx + w - 14 : bx + 14, y + 15, 12, mine ? '#b9adff' : '#7fd6ff', 0.9, mine ? 'right' : 'left', w - 28);
+  mono(text, mine ? bx + w - 14 : bx + 14, y + 36, 16, TXT, 1, mine ? 'right' : 'left', w - 28);
+  ctx.restore();
+}
+/* 歌词行（淡入 0.5s，唱满约 1.5s，退场 0.4s——保证与下一句不重叠；y 可调避让标题） */
+function lyric(t, text, at, color = CY, y = 92) {
+  const p = seg(t, at, at + 0.5);
+  if (p <= 0) return;
+  const fadeOut = 1 - seg(t, at + 1.5, at + 1.9);
+  glowText(text, W / 2, y, 40, color, { alpha: ease(p) * fadeOut, glow: 26, maxW: W - 120 });
+}
+
+/* ---------- 场景 ---------- */
+const CHAT = [
+  ['服务器, 码, 更新', '夜见'], ['在吗在吗', '小林'], ['笑死我了 [表情]', '桃桃'],
+  ['这个怎么弄', '阿柚'], ['帮看下这个报错', '夜见'], ['下午几点集合', '群友'],
+  ['兄弟们冲', '桃桃']
+];
+
+function sceneIntro(t) {
+  gridFloor(t, 0.2);
+  const p = seg(t, 0.3, 1.6);
+  glitch('深瞳 DeepPupil', W / 2, 270, 96, TXT, 1, (1 - ease(seg(t, 0.3, 2.6))) * 1.0);
+  glowText('DEEPPUPIL', W / 2, 360, 30, CY, { alpha: ease(seg(t, 1.0, 2.4)), glow: 20, font: 'Consolas, monospace', weight: 600 });
+  glowText('你 QQ 背后的 AI 搭子', W / 2, 440, 34, DIM, { alpha: ease(seg(t, 2.0, 3.4)), glow: 8, weight: 500 });
+  mono('LOCAL · PRIVATE · FREE', W / 2, 520, 16, '#4f6a8a', ease(seg(t, 2.6, 3.8)));
+}
+
+function sceneVerse1(t) {
+  gridFloor(t, 0.1);
+  glowText('深瞳 DeepPupil', W / 2, 60, 26, DIM, { alpha: 0.5 });
+  // 左侧实时日志（全部虚构账号与群名）
+  const logLines = [
+    '[14:04:42] [消息] 收到 群[星河生存服] 夜见: <图片x2>',
+    '[14:04:42] [表情包] 新收 2 个表情素材（库共 24 个）',
+    '[14:04:47] [表情包] 发出表情包 x1「图片」',
+    '[14:07:29] [deepseek] 提示词已发送（新建对话，765 字，含【表情包能力】✓)',
+    '[14:07:29] [消息] 收到 私[Aurora]: <图片x2>',
+    '[14:08:03] [表情包] 发出表情包 x1「图片」',
+    '[14:08:14] [AI] 已回复 → 私10001: 收到～这表情太生动了 (´･ω･`)'
+  ];
+  const per = 1.15;
+  const shown = Math.floor((t - 4.0) / per) + 1;
+  for (let i = 0; i < Math.min(shown, logLines.length); i++) {
+    const age = clamp01(((t - 4.0) - i * per) / 0.4);
+    mono(logLines[i], 60, 190 + i * 42, 15, i % 3 === 1 ? '#9adfff' : '#5f7fa5', 0.25 + ease(age) * 0.75, 'left', 640);
+  }
+  // 右侧气泡入场
+  for (let i = 0; i < CHAT.length; i++) {
+    const at = 4.3 + i * 1.02;
+    const p = seg(t, at, at + 0.7);
+    if (p <= 0) continue;
+    bubble(CHAT[i][0], CHAT[i][1], W + 40 - ease(p) * 380, 200 + i * 64, 0.96);
+  }
+  lyric(t, '群里消息一条条涌进来', 4.4);
+  lyric(t, '每一句 它都听得明白', 6.5);
+  lyric(t, '不用你回 它替你回', 8.5, VI);
+  lyric(t, '私聊 群聊 全天候待命', 10.4);
+}
+
+function scenePre(t) {
+  const x0 = (t - 12.0);
+  gridFloor(t, 0.14);
+  // 浏览器窗口
+  const p = ease(seg(t, 12.0, 13.0));
+  const bx = lerp(940, 240, p), by = lerp(-340, 120, p);
+  const bw = 800, bh = 480;
+  ctx.save(); ctx.globalAlpha = p;
+  ctx.fillStyle = 'rgba(10,16,26,.95)'; ctx.strokeStyle = 'rgba(53,200,255,.5)'; ctx.lineWidth = 1.5;
+  ctx.shadowColor = 'rgba(53,200,255,.35)'; ctx.shadowBlur = 26;
+  rr(bx, by, bw, bh, 14); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+  ['#ff5f57', '#febc2e', '#28c840'].forEach((c, i) => {
+    ctx.beginPath(); ctx.arc(bx + 26 + i * 24, by + 26, 7, 0, 7); ctx.fillStyle = c; ctx.fill();
+  });
+  mono('chat.deepseek.com', bx + bw / 2, by + 26, 14, DIM);
+  rr(bx + 24, by + 56, bw - 48, bh - 130, 10); ctx.fillStyle = 'rgba(16,26,42,.9)'; ctx.fill();
+  mono('你是 MC 机器人，专管《我的世界》探索、机制、指令和故障～', bx + 44, by + 92, 16, '#8fb4d8', 1, 'left', bw - 88);
+  mono('（用户）码, 更新', bx + 44, by + 132, 16, TXT, 1, 'left', bw - 88);
+  mono('（深瞳）收到～正在看代码…', bx + 44, by + 170, 16, '#9adfff', 1, 'left', bw - 88);
+  // 输入框 + 打字光标
+  const typed = Math.floor((t - 13.6) * 14);
+  const msg = '这个报错怎么修？'.slice(0, clamp01(typed / 14) * 14);
+  rr(bx + 24, by + bh - 64, bw - 48, 44, 22); ctx.fillStyle = 'rgba(20,34,56,.9)'; ctx.fill();
+  mono(msg || ' ', bx + 44, by + bh - 42, 17, TXT);
+  ctx.restore();
+  // 思考中 转圈
+  glowText('思考中', W / 2, 200, 52, CY, { alpha: p, glow: 30 });
+  const dots = '.'.repeat(1 + Math.floor((t * 3) % 3));
+  glowText('AI 正在想' + dots, W / 2, 262, 26, DIM, { alpha: p });
+  // 旋转弧
+  ctx.save(); ctx.translate(W / 2, 360); ctx.globalAlpha = p;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    const a0 = t * 4 + i * 2.09;
+    ctx.arc(0, 0, 46 + i * 16, a0, a0 + 0.9);
+    ctx.strokeStyle = [CY, VI, PK][i]; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function sceneChorus(t) {
+  const lt = t - 16.0;
+  gridFloor(t, 0.2);
+  const beat = (t * 2) % 1;
+  const pulse = Math.pow(1 - beat, 3);
+  // 冲击波
+  if (lt < 0.5) {
+    const p = lt / 0.5;
+    ctx.save(); ctx.globalAlpha = 1 - p;
+    ctx.strokeStyle = CY; ctx.lineWidth = 10 * (1 - p);
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, p * 900, 0, 7); ctx.stroke(); ctx.restore();
+  }
+  // 大标题（画在表情包之上，保证任何时候都读得到）
+  // 真实表情包乱飞（副歌 10 秒，11 张循环）
+  for (let i = 0; i < 11; i++) {
+    const at = 16.2 + i * 0.55;
+    const life = 2.1;
+    if (lt < at - 16.0 || lt > at - 16.0 + life) continue;
+    const age = (lt - (at - 16.0)) / life;
+    const x0 = W / 2, y0 = H / 2 + 40;
+    const ang = i * 1.9 + 0.6;
+    const dist = 130 + 420 * ease(age);
+    const x = x0 + Math.cos(ang) * dist;
+    const y = y0 + Math.sin(ang) * dist * 0.55 - Math.sin(age * Math.PI) * 120;
+    const size = 128 * (1 - 0.25 * age);
+    const rot = Math.sin(age * 9 + i) * 0.4;
+    const alpha = age < 0.15 ? age / 0.15 : (1 - Math.pow(age, 2.4));
+    sticker(STICKERS[i % STICKERS.length], x, y, size * (0.9 + 0.2 * pulse), rot, clamp01(alpha));
+  }
+  glitch('表情包 三连 刷起来！', W / 2, 130, 66, TXT, 2, Math.max(0, 0.5 - beat) * 0.8, W - 120);
+  // 标记协议
+  if (t > 19.2) {
+    const p = seg(t, 19.2, 19.9);
+    const blink = (Math.floor((t - 19.2) * 3) % 2) ? 1 : 0.25;
+    glowText('[表情][表情][表情]', W / 2, 620, 44, PK, { alpha: ease(p) * blink, glow: 22, font: 'Consolas, monospace' });
+  }
+  lyric(t, '本地缓存 永不过期', 22.0, VI);
+  lyric(t, '发送不走 QQ 图链', 24.0);
+  // 边缘光
+  ctx.save(); ctx.globalAlpha = 0.25 * pulse; ctx.strokeStyle = PK; ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, W - 12, H - 12); ctx.restore();
+}
+
+const MODELS = [
+  ['DeepSeek', 'deepseek', CY], ['通义千问', 'qianwen', '#ff8a3d'], ['Kimi', 'kimi', '#6fd0ff'], ['小米 MiMo', 'mimo', PK]
+];
+function sceneVerse2(t) {
+  gridFloor(t, 0.12);
+  glowText('换个大脑 一样顺手', W / 2, 58, 54, TXT, { glow: 24 });
+  for (let i = 0; i < 4; i++) {
+    const at = 26.6 + i * 0.8;
+    const p = ease(seg(t, at, at + 0.6));
+    const [name, , color] = MODELS[i];
+    const x = W / 2 + (i - 1.5) * 290;
+    const y = 330 + Math.sin(t * 2 + i) * 8;
+    const w = 250, h = 170;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate((1 - p) * 0.5); ctx.scale(0.6 + p * 0.4, 0.6 + p * 0.4);
+    ctx.globalAlpha = p;
+    ctx.fillStyle = 'rgba(12,20,34,.92)'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.shadowColor = color; ctx.shadowBlur = 18 + 10 * Math.pow(1 - ((t * 2) % 1), 3);
+    rr(-w / 2, -h / 2, w, h, 18); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+    mono(name, 0, -26, 30, color, 1, 'center', w - 40);
+    mono('免 Key · 网页版', 0, 22, 15, DIM, 0.95, 'center', w - 40);
+    const active = t > at + 0.6 && t < at + 0.8;
+    if (active) {
+      ctx.beginPath(); ctx.arc(0, 58, 6 + 2 * Math.sin(t * 12), 0, 7);
+      ctx.fillStyle = '#28c840'; ctx.fill();
+    }
+    ctx.restore();
+  }
+  // 切换箭头（画在卡片之间的空隙）
+  ctx.save(); ctx.globalAlpha = 0.6 * ease(seg(t, 27.0, 27.8));
+  for (let i = 0; i < 3; i++) {
+    glowText('›', W / 2 + (i - 1) * 290, 330, 40, DIM, { alpha: 0.8 });
+  }
+  ctx.restore();
+  lyric(t, '四个网页版 随便切', 28.6, VI, 205);
+  lyric(t, '免 Key · 免 API 费', 30.4, CY, 205);
+}
+
+function sceneOutro(t) {
+  const lt = t - 32.0;
+  gridFloor(t, 0.18);
+  // 多选会话勾选（全部虚构）
+  const chats = ['私 · Aurora', '群 · 星河生存服', '群 · 拼图讨论组', '私 · 小柚'];
+  glowText('选中谁 就回谁', W / 2, 96, 50, TXT, { glow: 22, maxW: W - 120 });
+  for (let i = 0; i < chats.length; i++) {
+    const at = 32.2 + i * 0.4;
+    const p = ease(seg(t, at, at + 0.35));
+    const y = 190 + i * 62;
+    const on = t > at + 0.15;
+    ctx.save(); ctx.globalAlpha = p * (1 - seg(t, 33.2, 33.9));   // 盒子落地前列表先淡出，避免压住文字
+    ctx.fillStyle = 'rgba(14,24,40,.9)'; ctx.strokeStyle = on ? '#28c840' : 'rgba(80,110,150,.5)';
+    ctx.lineWidth = 1.6; rr(400, y - 22, 480, 44, 10); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = on ? '#28c840' : '#4a6a8a';
+    ctx.strokeRect(422, y - 10, 20, 20);
+    if (on) {
+      ctx.beginPath(); ctx.moveTo(426, y); ctx.lineTo(431, y + 6); ctx.lineTo(439, y - 7);
+      ctx.strokeStyle = '#28c840'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+    }
+    mono(chats[i], 456, y, 17, on ? TXT : DIM, 1, 'left', 400);
+    ctx.restore();
+  }
+  // 安装包落地
+  const drop = ease(seg(t, 33.8, 34.4));
+  const squash = 1 + Math.max(0, 0.35 - Math.abs((t - 34.4) * 4)) * 1.1;
+  const ex = W / 2, ey = lerp(-120, 420, drop);
+  ctx.save();
+  ctx.translate(ex, ey); ctx.scale(2 - squash, 2 - squash);
+  ctx.fillStyle = 'rgba(16,28,46,.96)'; ctx.strokeStyle = CY; ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(53,200,255,.5)'; ctx.shadowBlur = 24;
+  rr(-150, -90, 300, 180, 16); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+  mono('深瞳DeepPupil', 0, -30, 26, TXT, 1, 'center', 260);
+  mono('安装包.exe', 0, 4, 22, CY, 1, 'center', 260);
+  mono('2.4 MB · 双击即用', 0, 48, 15, DIM, 1, 'center', 260);
+  ctx.restore();
+  // 冲击环
+  if (t > 34.4 && t < 35.1) {
+    const p = (t - 34.4) / 0.7;
+    ctx.save(); ctx.globalAlpha = 1 - p;
+    ctx.strokeStyle = CY; ctx.lineWidth = 8 * (1 - p);
+    ctx.beginPath(); ctx.ellipse(ex, 500, 220 * p + 40, 60 * p + 12, 0, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+  // 收尾标题
+  const fin = seg(t, 34.8, 35.6);
+  glowText('深瞳 DeepPupil', W / 2, 620, 44, TXT, { alpha: ease(fin), glow: 26, maxW: W - 120 });
+  mono('deepseek · qianwen · kimi · mimo —— 你 QQ 背后的 AI 搭子', W / 2, 664, 16, DIM, ease(fin) * 0.9, 'center', W - 120);
+}
+
+/* ---------- 主渲染 ---------- */
+function renderAt(t) {
+  t = Math.max(0, Math.min(DUR, t));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  bg(t);
+  if (t < 4.0) sceneIntro(t);
+  else if (t < 12.0) sceneVerse1(t);
+  else if (t < 16.0) scenePre(t);
+  else if (t < 26.0) sceneChorus(t);
+  else if (t < 32.0) sceneVerse2(t);
+  else sceneOutro(t);
+  // 暗角 + 扫描线（统一质感）
+  if (t >= 16.0 && t < 26.0) scanlines(0.06);
+  vignette(0.55);
+  // 片头片尾黑场
+  const fade = t < 0.4 ? 1 - t / 0.4 : (t > 35.4 ? clamp01((36 - t) / 0.6) : 1);
+  ctx.fillStyle = `rgba(0,0,0,${1 - fade})`;
+  ctx.fillRect(0, 0, W, H);
+}
+window.renderAt = renderAt;
+window.__seek = (t) => { au.currentTime = t; };
+window.__ready = ready;
+function play() {
+  if (au.paused) { au.play(); loop(); } else { au.pause(); }
+}
+let raf = null;
+function loop() {
+  cancelAnimationFrame(raf);
+  const step = () => {
+    renderAt(au.currentTime);
+    if (!au.paused) raf = requestAnimationFrame(step);
+  };
+  step();
+}
+renderAt(0);
+// 抓帧模式：隐藏控制条、锁死 1280x720（URL 加 ?cap）
+if (location.search.includes('cap')) {
+  document.getElementById('bar').style.display = 'none';
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+}
+</script>
+</body>
+</html>

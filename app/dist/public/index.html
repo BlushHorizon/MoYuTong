@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>深瞳 DeepPupil · QQ 智能体监控台</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+</head>
+<body>
+  <div id="app">
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">◉</span>
+        <span class="title">深瞳 <em>DeepPupil</em></span>
+        <span class="subtitle">QQ 智能体监控台</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill" id="qqStatusPill" title="QQ 接入状态">
+          <i class="dot"></i><span id="qqStatusText">连接中…</span>
+        </div>
+        <label class="ai-switch" title="AI 自动回复总开关">
+          <input type="checkbox" id="aiToggle" />
+          <span class="track"><span class="knob"></span></span>
+          <span class="ai-label">AI 自动回复</span>
+        </label>
+        <button class="icon-btn" id="btnSettings" title="设置">⚙</button>
+      </div>
+    </header>
+
+    <main class="dash">
+      <!-- 状态卡 -->
+      <section class="cards">
+        <div class="card">
+          <div class="card-title">QQ 接入</div>
+          <div class="card-main" id="cardQqMain">—</div>
+          <div class="card-sub" id="cardQqSub">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">AI 大脑</div>
+          <div class="card-main" id="cardAiMain">—</div>
+          <div class="card-sub" id="cardAiSub">—</div>
+        </div>
+        <div class="card">
+          <div class="card-title">DeepSeek 网页版</div>
+          <div class="card-main" id="cardDsMain">—</div>
+          <div class="card-sub" id="cardDsSub">—</div>
+          <div class="row-btns">
+            <button class="mini-btn" id="btnDsOpen">① 打开浏览器并登录</button>
+            <button class="mini-btn alt" id="btnDsNew">② 新建对话</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">今日动态</div>
+          <div class="card-main" id="cardStatMain">—</div>
+          <div class="card-sub" id="cardStatSub">—</div>
+        </div>
+      </section>
+
+      <!-- 双栏：会话概览 + 实时动态 -->
+      <section class="panels">
+        <div class="panel">
+          <div class="panel-head">会话概览 <span class="panel-hint" id="ovHint"></span></div>
+          <ul id="overviewList" class="overview"></ul>
+        </div>
+        <div class="panel feed-panel">
+          <div class="panel-head">实时动态 <span class="live-dot" title="SSE 实时推送"></span></div>
+          <ul id="feedList" class="feed"></ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <div class="modal hidden" id="settingsModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>设置</h3>
+        <button class="close-btn" data-close="settingsModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <h4>AI 自动回复</h4>
+        <label class="field">
+          <span>回复对象</span>
+          <select id="setReplyMode">
+            <option value="all">全部会话都回复</option>
+            <option value="target">只回复选中的会话（可多选，其他一律不回）</option>
+          </select>
+        </label>
+        <label class="field column" id="targetWrap">
+          <span>指定会话</span>
+          <select id="setTargetChat" multiple size="5"></select>
+          <span class="tip">按住 Ctrl 点选可多选，<b>选中的会话全部回复</b>；一个都不选 = 全部回复</span>
+        </label>
+        <label class="field">
+          <span>回复范围</span>
+          <select id="setScope">
+            <option value="private">仅私聊</option>
+            <option value="all">私聊 + 群聊</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>群聊需 @ 才回</span>
+          <input type="checkbox" id="setMention" />
+        </label>
+        <label class="field">
+          <span>群聊主动回复概率%</span>
+          <input type="number" id="setGroupChance" min="0" max="100" title="群里没@机器人的消息被回复的几率；@必回；0=群里不主动回" />
+        </label>
+        <label class="field column">
+          <span>群聊关键词（命中才回，逗号分隔；留空=不限；@和图片不受限）</span>
+          <input type="text" id="setKeywords" placeholder="例如：服务器,在吗,更新" />
+        </label>
+        <label class="field">
+          <span>看图回复</span>
+          <input type="checkbox" id="setImageReply" title="收到图片时让 DeepSeek 看图后回复" />
+        </label>
+        <label class="field">
+          <span>群回@成员</span>
+          <input type="checkbox" id="setGroupAt" title="群聊回复时自动 @ 触发消息的人" />
+        </label>
+        <label class="field">
+          <span>群回引用</span>
+          <input type="checkbox" id="setGroupQuote" title="群聊回复时自动引用原消息" />
+        </label>
+        <label class="field">
+          <span>免打扰时段</span>
+          <input type="checkbox" id="setQuietEnabled" />
+          <input type="time" id="setQuietFrom" style="flex:0 0 110px" />
+          <span style="flex:0 0 auto">到</span>
+          <input type="time" id="setQuietTo" style="flex:0 0 110px" />
+        </label>
+        <label class="field">
+          <span>指令主人QQ</span>
+          <input type="text" id="setCmdSenders" placeholder="自己的QQ号，逗号分隔；留空=禁用 /开 /暂停 /状态" />
+        </label>
+        <label class="field">
+          <span>大脑来源</span>
+          <select id="setProvider">
+            <option value="deepseek-web">网页版模型（免 Key：DeepSeek / 千问 / Kimi / MiMo）</option>
+            <option value="openai-compatible">API 接口（OpenAI 兼容）</option>
+            <option value="builtin">内置规则引擎</option>
+          </select>
+        </label>
+        <div id="webOnly">
+          <label class="field column">
+            <span>用哪个网页版模型（切换模型）</span>
+            <select id="setWebSite"></select>
+          </label>
+          <div class="row-btns">
+            <button class="mini-btn alt" id="btnWebOpen">① 打开该网站（首次需登录）</button>
+          </div>
+          <p class="tip" id="webSiteHint"></p>
+          <label class="field">
+            <span>CDP 端口</span>
+            <input type="number" id="setCdpPort" min="1024" max="65535" />
+          </label>
+          <label class="field column">
+            <span>浏览器路径（留空自动找 Edge/Chrome）</span>
+            <input type="text" id="setBrowserPath" placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" />
+          </label>
+          <label class="field column">
+            <span>提示词（每次新建对话时自动发一次，留空=不发）</span>
+            <textarea id="setWebPrompt" rows="4" placeholder="例如：你是我的 QQ 聊天代回复，回复口语化、简短、像真人。&#10;留空则直接把对方消息原文发给 DeepSeek"></textarea>
+          </label>
+          <label class="field">
+            <span>多少轮后自动新对话</span>
+            <input type="number" id="setWebMaxRounds" min="5" max="200" />
+          </label>
+          <div class="ds-status" id="dsStatus">状态：未连接</div>
+          <div class="row-btns">
+            <button class="mini-btn alt" id="btnDsTest">③ 测试回复</button>
+          </div>
+          <p class="tip" id="dsTip">首次使用会弹出一个 Edge 窗口，请扫码登录 DeepSeek；登录一次后会长期复用。</p>
+        </div>
+        <div id="apiOnly">
+        <label class="field">
+          <span>开启</span>
+          <input type="checkbox" id="setEnabled" />
+        </label>
+        <label class="field">
+          <span>接口地址</span>
+          <input type="text" id="setBaseUrl" placeholder="https://api.deepseek.com" />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input type="password" id="setApiKey" placeholder="留空则使用内置规则应答" />
+        </label>
+        <label class="field">
+          <span>模型</span>
+          <input type="text" id="setModel" placeholder="deepseek-chat" />
+        </label>
+        <label class="field">
+          <span>最小间隔(ms)</span>
+          <input type="number" id="setInterval" min="500" step="500" />
+        </label>
+        <label class="field column">
+          <span>角色设定（system prompt）</span>
+          <textarea id="setPrompt" rows="4"></textarea>
+        </label>
+        </div>
+
+        <h4>表情包</h4>
+        <p class="tip">机器人自动收藏群友们发的商城表情/图片当素材库，AI 聊天时<b>自己看着办</b>发表情包（提示词内置「表情包能力」，告诉它怎么触发、什么时候发）。给机器人私聊丢几个表情包或在群里发，它马上收藏。</p>
+        <div class="field" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="tip" id="stickerStats">素材：加载中…</span>
+          <button class="mini-btn primary-btn" id="btnStickerTest">发一个到我 QQ 看看</button>
+          <button class="mini-btn danger-btn" id="btnStickerClear">全部清空</button>
+        </div>
+        <div id="stickerList" class="sticker-list"></div>
+
+        <h4>QQ 接入</h4>
+        <label class="field">
+          <span>模式</span>
+          <select id="setMode">
+            <option value="mock">演示模式（模拟）</option>
+            <option value="onebot">OneBot 11（NapCatQQ）</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>OneBot WS</span>
+          <input type="text" id="setWsUrl" placeholder="ws://127.0.0.1:3001" />
+        </label>
+        <label class="field">
+          <span>AccessToken</span>
+          <input type="password" id="setToken" placeholder="NapCat 未设置则留空" />
+        </label>
+        <p class="tip">切换 QQ 接入模式后需重启服务；NapCat 配置见 README。</p>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" data-close="settingsModal">取消</button>
+        <button class="primary-btn" id="btnSaveSettings">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

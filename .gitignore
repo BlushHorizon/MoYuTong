@@ -1,0 +1,21 @@
+# 运行期数据（聊天记录 / 表情包库 / 浏览器登录态 / 日志）——绝不进仓库
+app/data/
+data/
+*.log
+server.log*
+stdin.empty
+
+# 依赖（本项目零运行时依赖，留个口子）
+node_modules/
+
+# MV 中间产物（帧缓存与 headless 浏览器临时配置）
+mv/frames/
+mv/.edge-profile/
+mv/.edge-redact/
+.mv-edge-*/
+
+# 浏览器/系统杂项
+Thumbs.db
+desktop.ini
+.DS_Store
+*.lnk
