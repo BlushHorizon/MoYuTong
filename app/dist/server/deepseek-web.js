@@ -595,14 +595,24 @@ class DeepSeekWeb {
   }
 
   /**
-   * 打开一个新标签页（浏览器已在运行时也能把站点开出来）。
-   * CDP 的 /json/new 接口：新版 Chromium 只收 PUT，老的收 GET，两个都试。
+   * 打开一个新标签页并导航到站点。
+   * 注意：/json/new 的 url 查询参数不能编码（Chromium 只收原样 URL，编码了会开出 about:blank），
+   * 所以这里先建空白页，再直连它用 Page.navigate 导航。
    */
   async _newTab(url) {
     for (const method of ['PUT', 'GET']) {
       try {
-        const resp = await fetch(`http://127.0.0.1:${this.port}/json/new?${encodeURIComponent(url)}`, { method });
-        if (resp.ok) return true;
+        const resp = await fetch(`http://127.0.0.1:${this.port}/json/new?about:blank`, { method });
+        if (!resp.ok) continue;
+        const target = await resp.json();
+        if (!target || !target.webSocketDebuggerUrl) continue;
+        await this._connect(target.webSocketDebuggerUrl);
+        await this.cdp('Page.enable', {}, 8000).catch(() => null);
+        await this.cdp('Page.navigate', { url: String(url) }, 20000).catch(() => null);
+        this._ws = null;          // 交回调用方按 host 重新连接，避免残留
+        this._wsUrl = '';
+        await sleep(1200);        // 等导航起效
+        return true;
       } catch { /* 换下一种方式 */ }
     }
     return false;
