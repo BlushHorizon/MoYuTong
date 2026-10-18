@@ -1,14 +1,14 @@
-# 深瞳 DeepPupil
+# 摸鱼瞳 MoYuTong
 
 > 你 QQ 背后的 AI 搭子 —— 本地运行 · 免 API Key · AI 会自己发表情包
 
-深瞳通过 **OneBot 11**（SnowLuma / NapCat 等任意实现）接入你真实的 QQ 账号，用**网页版大模型**当大脑替你自动应答；同时内置网页监控台，连接状态、回复记录、表情包素材全部可视化。Windows 安装包 2.4 MB，双击即用。
+摸鱼瞳通过 **OneBot 11**（SnowLuma / NapCat 等任意实现）接入你真实的 QQ 账号，用**网页版大模型**当大脑替你自动应答；同时内置网页监控台，连接状态、回复记录、表情包素材全部可视化。Windows 安装包 2.4 MB，双击即用。
 
 ![监控台](site/assets/shot-dashboard.png)
 
 ## 亮点
 
-- **网页版大模型直连，免 API Key**：内置 **DeepSeek / 通义千问 / Kimi / 小米 MiMo** 四套站点档案，同一套浏览器驱动（CDP）按档案跑，设置里一键切换；也支持任意 OpenAI 兼容接口（填 baseUrl + Key + model 即可，本地 Ollama、中转站都行）
+- **网页版 DeepSeek 直连，免 API Key**：不需要任何 Key，不产生任何 API 账单；用浏览器驱动（CDP）像人一样操作 DeepSeek 网页版。设置里可切换站点档案（新增站点 = 在 `server/web-sites.js` 加一条档案）
 - **表情包引擎（核心特性）**：自动收藏所有来信中的商城表情/图片并**下载本地副本**（QQ 图链会过期，本地副本不会）；AI 回复里写 `[表情]` / `[表情:关键词]` 标记就自动发表情包，一条回复可三连，多个表情包**打包成同一条消息**发出，不会触发刷屏风控；面板里可视化增删
 - **只回该回的人**：「指定会话」支持**多选**（Ctrl 点选），选中的会话全部回复，其他一律不回；一个都不选 = 全部回复
 - **群聊规矩全套**：需 @ 才回、关键词过滤、非 @ 主动回复概率、自动 @ 触发者、引用原消息、群聊/私聊范围
@@ -21,16 +21,16 @@
 
 ## 安装与使用
 
-1. 下载安装包（Releases 里的 `深瞳DeepPupil安装包.exe`），默认装到 `D:\深瞳`，覆盖安装不丢数据
+1. 下载安装包（Releases 里的 `摸鱼瞳MoYuTong安装包.exe`），默认装到 `D:\摸鱼瞳`，覆盖安装不丢数据
 2. 启动任意 OneBot 11 机器人端（如 SnowLuma / NapCat），面板里填 WS 地址（默认 `ws://127.0.0.1:3001`）
-3. 双击「开启.bat」，浏览器打开监控台 → 点「① 打开该网站」登录一次大模型网页版，之后它自己开工
+3. 双击「开启.bat」，浏览器打开监控台 → 点「① 打开该网站」扫码登录一次 DeepSeek 网页版，之后它自己开工
 
 系统要求：Windows 10/11 + Edge/Chrome + 一台 QQ（建议小号）+ OneBot 11 机器人端。
 
 ## 目录结构
 
 ```
-DeepPupil/
+MoYuTong/
 ├─ app/                  软件本体（零依赖 Node 服务 + 监控台前端 + NSIS 打包）
 │  ├─ server/            server.js / ai.js / deepseek-web.js / web-sites.js / stickers.js / qq-adapter.js …
 │  ├─ public/            监控台页面（index.html / app.js / style.css）
@@ -40,7 +40,7 @@ DeepPupil/
 │  └─ config.json        配置（首次运行自动生成）
 ├─ site/                 官网（纯静态，双击 index.html 即可）
 ├─ mv/                   MV 全部由代码生成：mv.html 画面 + make-wav.js 配乐合成
-│  └─ out/               deeppupil-mv.mp4 成片 / music.wav 配乐
+│  └─ out/               moyutong-mv.mp4 成片 / music.wav 配乐
 └─ docs/技术文档.md      详细技术文档（架构、接口、协议、故障排查）
 ```
 
@@ -53,7 +53,7 @@ node server/server.js       # 或 Windows 下双击 start.bat
 ```
 
 - 无第三方依赖：浏览器控制走 Chrome DevTools Protocol（CDP），WebSocket 用 Node ≥ 22 的全局 `WebSocket`
-- 切换网页版模型：`ai.webProvider` 配置项（deepseek / qianwen / kimi / mimo），站点档案在 `server/web-sites.js`，新增站点 = 加一条档案
+- 网页站点档案在 `server/web-sites.js`，新增站点 = 加一条档案（选择器、输入框、发送键等都写在里面）
 - 构建安装包：装 [NSIS](https://nsis.sourceforge.io/)，在 `app/` 下执行 `makensis setup.nsi`，产物默认输出到安装包目录
 
 ## 官网与 MV
@@ -65,15 +65,15 @@ node server/server.js       # 或 Windows 下双击 start.bat
 
 ## 隐私
 
-- 所有数据都在你自己的机器上：`D:\深瞳\data`（聊天记录、表情包库、浏览器登录态、日志），**没有任何遥测与联网上传**
+- 所有数据都在你自己的机器上：`D:\摸鱼瞳\data`（聊天记录、表情包库、浏览器登录态、日志），**没有任何遥测与联网上传**
 - 本仓库已剔除全部个人数据（QQ 号、群号、真实会话名、聊天记录、浏览器登录态、日志），`config.json` 为出厂默认
 
-> ⚠️ 自动化回复有触发 QQ 风控的可能（高频发消息/发图）。深瞳内置了最小回复间隔、表情包批量单条、40 秒冷却、免打扰时段等护栏，但请自行控制频率、遵守平台规则，**请勿用于骚扰**。建议使用小号。
+> ⚠️ 自动化回复有触发 QQ 风控的可能（高频发消息/发图）。摸鱼瞳内置了最小回复间隔、表情包批量单条、40 秒冷却、免打扰时段等护栏，但请自行控制频率、遵守平台规则，**请勿用于骚扰**。建议使用小号。
 
 ## 免责声明
 
-本项目与 QQ / DeepSeek / 通义 / 月之暗面 / 小米等官方无关；各网站的结构变更可能导致网页驱动需要调整（站点档案集中在一个文件里，便于跟进）。使用者需自行确保行为符合所在平台的服务条款与当地法律法规。
+本项目与 QQ / DeepSeek 官方无关；各网站的结构变更可能导致网页驱动需要调整（站点档案集中在一个文件里，便于跟进）。使用者需自行确保行为符合所在平台的服务条款与当地法律法规。
 
 ## License
 
-MIT © DeepPupil contributors
+MIT © MoYuTong contributors

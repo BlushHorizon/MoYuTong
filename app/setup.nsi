@@ -9,13 +9,13 @@ SetCompressor /SOLID lzma
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
-!define APPNAME "深瞳 DeepPupil"
-!define REGKEY "Software\DeepPupil"
-!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\DeepPupil"
+!define APPNAME "摸鱼瞳 MoYuTong"
+!define REGKEY "Software\MoYuTong"
+!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\MoYuTong"
 
 Name "${APPNAME}"
-OutFile "H:\安装包\深瞳DeepPupil安装包.exe"
-InstallDir "D:\深瞳"
+OutFile "H:\安装包\摸鱼瞳MoYuTong安装包.exe"
+InstallDir "D:\摸鱼瞳"
 InstallDirRegKey HKCU "${REGKEY}" "InstallDir"
 RequestExecutionLevel user
 Icon "dist\assets\icon.ico"
@@ -24,14 +24,14 @@ Icon "dist\assets\icon.ico"
 
 VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=0 "ProductName" "${APPNAME}"
-VIAddVersionKey /LANG=0 "FileDescription" "深瞳 DeepPupil 安装程序"
+VIAddVersionKey /LANG=0 "FileDescription" "摸鱼瞳 MoYuTong 安装程序"
 VIAddVersionKey /LANG=0 "FileVersion" "1.0.0.0"
 VIAddVersionKey /LANG=0 "CompanyName" "QQ WebChat"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\开启.bat"
-!define MUI_FINISHPAGE_RUN_TEXT "启动 深瞳（打开服务和网页）"
+!define MUI_FINISHPAGE_RUN_TEXT "启动 摸鱼瞳（打开服务和网页）"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -86,7 +86,7 @@ Section "主程序" SecMain
   WriteRegStr HKCU "${REGKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\assets\icon.ico"
-  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "DeepPupil"
+  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "MoYuTong"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "1.0.0.0"
   WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoModify" 1
@@ -94,8 +94,8 @@ Section "主程序" SecMain
 
   ; ---------- 快捷方式 ----------
   ; 桌面：直接给 .bat 快捷方式（开启 / 关闭），双击即用
-  CreateShortCut "$DESKTOP\深瞳-开启.lnk" "$INSTDIR\开启.bat" "" "$INSTDIR\assets\icon.ico" 0
-  CreateShortCut "$DESKTOP\深瞳-关闭.lnk" "$INSTDIR\关闭.bat" "" "$INSTDIR\assets\icon.ico" 0
+  CreateShortCut "$DESKTOP\摸鱼瞳-开启.lnk" "$INSTDIR\开启.bat" "" "$INSTDIR\assets\icon.ico" 0
+  CreateShortCut "$DESKTOP\摸鱼瞳-关闭.lnk" "$INSTDIR\关闭.bat" "" "$INSTDIR\assets\icon.ico" 0
 
   ; 开始菜单
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
@@ -110,8 +110,8 @@ Section "Uninstall"
   ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\launcher.ps1" -Stop' $0
 
   Delete "$DESKTOP\${APPNAME}.lnk"   ; 旧版应用快捷方式
-  Delete "$DESKTOP\深瞳-开启.lnk"
-  Delete "$DESKTOP\深瞳-关闭.lnk"
+  Delete "$DESKTOP\摸鱼瞳-开启.lnk"
+  Delete "$DESKTOP\摸鱼瞳-关闭.lnk"
   RMDir /r "$SMPROGRAMS\${APPNAME}"
 
   SetOutPath "$TEMP"

@@ -1,5 +1,5 @@
 'use strict';
-/* 深瞳 DEEPPUPIL 官网 —— 复制 / 聊天演示 / 滚动出现 */
+/* 摸鱼瞳 DEEPPUPIL 官网 —— 复制 / 聊天演示 / 滚动出现 */
 
 /* ---------- 复制（file:// 下 clipboard 不可用，走 execCommand 兜底） ---------- */
 function copyText(text, btnId) {

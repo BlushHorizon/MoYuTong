@@ -1,4 +1,4 @@
-﻿# 深瞳 DeepPupil · 一键启动器（由桌面快捷方式调用）
+﻿# 摸鱼瞳 MoYuTong · 一键启动器（由桌面快捷方式调用）
 # 参数：-NoBrowser 只启动服务不开网页；-Stop 停止服务；-LiveConsole 实时控制台模式
 # 守护模式：启动后常驻，服务进程意外退出 3 秒后自动重启（防抽风）。
 # -LiveConsole：日志直接打在本窗口；关闭本窗口 = 服务随窗口一起关停。
@@ -17,7 +17,7 @@ $logDir = Join-Path $root 'data'
 $logFile = Join-Path $logDir 'server.log'
 $stopFlag = Join-Path $logDir '.svc_stop'
 
-function Show-Msg([string]$text, [string]$title = '深瞳 DeepPupil') {
+function Show-Msg([string]$text, [string]$title = '摸鱼瞳 MoYuTong') {
     # 总是落日志 + 打到控制台
     try {
         $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -93,7 +93,7 @@ if (-not $node) {
 if (Test-Port $port) {
     if (-not $NoBrowser) { Start-Process $url }
     if ($LiveConsole) {
-        try { $Host.UI.RawUI.WindowTitle = 'DeepPupil' } catch { }
+        try { $Host.UI.RawUI.WindowTitle = 'MoYuTong' } catch { }
         Write-Host ''
         Write-Host '  服务已在运行。' -ForegroundColor Yellow
         Write-Host '  如需日志窗口：先双击「关闭」，再重新双击「开启」。'
@@ -112,9 +112,9 @@ if (-not $NoBrowser) { Start-Process $url }
 
 if ($LiveConsole) {
     # 实时控制台模式：本窗口就是程序 —— 日志直接滚动，关掉窗口 = 停止服务
-    try { $Host.UI.RawUI.WindowTitle = 'DeepPupil ' + [char]0x6DF1 + [char]0x77B3 + ' ' + [char]0x65E5 + [char]0x5FD7 } catch { }
+    try { $Host.UI.RawUI.WindowTitle = 'MoYuTong ' + [char]0x6DF1 + [char]0x77B3 + ' ' + [char]0x65E5 + [char]0x5FD7 } catch { }
     Write-Host ''
-    Write-Host ('  深瞳 DeepPupil 已启动 · ' + (Get-Date -Format 'HH:mm:ss')) -ForegroundColor Green
+    Write-Host ('  摸鱼瞳 MoYuTong 已启动 · ' + (Get-Date -Format 'HH:mm:ss')) -ForegroundColor Green
     Write-Host '  关闭本窗口 = 停止服务；也可用「关闭」停止。'
     Write-Host '  ------------------------------------------------------------'
 }

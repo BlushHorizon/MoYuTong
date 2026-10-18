@@ -1,6 +1,6 @@
 'use strict';
 /**
- * 深瞳 MV 配乐合成器（纯 JS，无依赖）
+ * 摸鱼瞳 MV 配乐合成器（纯 JS，无依赖）
  * 120 BPM 合成波（synthwave）：kick/clap/hat + 贝斯 + 琶音（带回声）+ 铺底 + 主旋律
  * 输出：mv/out/music.wav（44.1kHz 16bit 单声道，36 秒），与 MV 画面时间轴严格对齐
  */

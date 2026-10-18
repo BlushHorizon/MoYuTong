@@ -53,7 +53,7 @@ console.error = ((orig) => (...a) => { const l = `[${_tsNow()}] [ERROR] ${_toLin
 _rotateIfNeeded();
 {
   const d = new Date(); const p = (n) => String(n).padStart(2, '0');
-  console.log(`======== 深瞳 DeepPupil 服务启动 ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ========`);
+  console.log(`======== 摸鱼瞳 MoYuTong 服务启动 ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ========`);
 }
 /** 运行计数（由 broadcast 汇总，供心跳行输出） */
 const stats = { inMsgs: 0, aiReplies: 0, skips: 0 };
@@ -345,7 +345,7 @@ async function handleApi(req, res, url) {
       if (patch.ai) {
         const c = configLib.get();
         deepseek.configure({
-          site: c.ai.webProvider || 'deepseek',   // 切换网页版模型（DeepSeek/千问/Kimi/MiMo）
+          site: c.ai.webProvider || 'deepseek',   // 网页版站点档案见 server/web-sites.js
           prompt: ai._fullPrompt(),   // 用户人设 +【表情包能力】段（与启动/新建对话同源）
           maxRounds: c.ai.webMaxRounds ?? 50,
           port: c.ai.cdpPort,
