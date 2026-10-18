@@ -45,22 +45,10 @@ function checkJsonConfig(rel) {
   if (md && !/^(example|test)\./.test(md[1])) fail('(全文)', `疑似私人服务器域名 ${md[0]}`);
 }
 
-/** 浏览器登录态类文件绝不能出现在 dist/ */
-const PROFILE_ARTS = ['Login Data', 'Cookies', 'Local State', 'Web Data', 'History', 'Preferences'];
-function checkProfileFiles(dir = DIST, depth = 0) {
-  if (depth > 8) return;
-  let ents;
-  try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-  for (const e of ents) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (e.name === 'deepseek_profile') problems.push(`${path.relative(DIST, p)}  ::  浏览器登录态目录`);
-      checkProfileFiles(p, depth + 1);
-      continue;
-    }
-    if (PROFILE_ARTS.includes(e.name)) problems.push(`${path.relative(DIST, p)}  ::  浏览器登录态文件`);
-  }
-}
+/** 禁止出现的浏览器配置目录（会导致别人装完自动登录你的账号） */
+const PROFILE_DIR_NAMES = ['deepseek_profile', '.edge-audit', '.edge-dbg', '.edge-prev',
+  '.edge-profile', '.edge-redact', '.edge-shots', '.edge-profile-tut', '.edge-profile-promo',
+  '.edge-prev2', '.edge-site', '.edge-site2', 'edge-prev2'];
 
 /** dist/ 下的文档与代码：只扫「像真实凭据」的串 */
 function checkText(dir = DIST, depth = 0) {
@@ -89,11 +77,28 @@ function checkText(dir = DIST, depth = 0) {
   }
 }
 
-if (!fs.existsSync(DIST)) { console.error('✗ 没有 dist/ 目录'); process.exit(1); }
-
-checkJsonConfig('config.json');
-checkProfileFiles();
-checkText();
+/** 浏览器登录态类文件绝不能出现在 dist/ */
+const PROFILE_ARTS = ['Login Data', 'Cookies', 'Local State', 'Web Data', 'History', 'Preferences'];
+/** 登录态所在的目录名（任意层级出现即拦截） */
+const PROFILE_DIRS = ['deepseek_profile', 'User Data', 'Default'];
+function checkProfileFiles(dir = DIST, depth = 0, trail = '') {
+  if (depth > 8) return;
+  let ents;
+  try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of ents) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (PROFILE_DIRS.includes(e.name) || PROFILE_DIR_NAMES.includes(e.name)) {
+        problems.push(`${path.relative(DIST, p)}  ::  浏览器配置/登录态目录「${e.name}」—— 会让人自动登录你的账号`);
+      }
+      checkProfileFiles(p, depth + 1, trail + '/' + e.name);
+      continue;
+    }
+    if (PROFILE_ARTS.includes(e.name)) {
+      problems.push(`${path.relative(DIST, p)}  ::  浏览器登录态文件「${e.name}」（含 Cookies / 登录令牌）`);
+    }
+  }
+}
 
 /* data/ 必须为空（登录态由用户自己扫出来，不随包分发） */
 const dataDir = path.join(DIST, 'data');
@@ -106,6 +111,13 @@ if (fs.existsSync(dataDir)) {
   })(dataDir);
   if (n.length) problems.push(`dist/data/ 含 ${n.length} 个文件（应为空）：${n.slice(0, 3).map(f => path.relative(DIST, f)).join(', ')}…`);
 }
+
+/* ---------------- 执行全部检查 ---------------- */
+if (!fs.existsSync(DIST)) { console.error('✗ 没有 dist/ 目录'); process.exit(1); }
+
+checkJsonConfig('config.json');
+checkProfileFiles();   // 登录态文件 / 配置目录（任意层级）
+checkText();           // 疑似凭据串 / 裸 QQ 号
 
 if (problems.length) {
   console.error('\n✗ 打包闸门未通过 —— dist/ 混入真实隐私，已中止：');
