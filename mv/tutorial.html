@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>摸鱼瞳 MoYuTong · 上手教程</title>
+<style>
+  html, body { margin: 0; background: #05070d; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  canvas { box-shadow: 0 0 80px rgba(47, 123, 255, .16); }
+  #bar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+  button { background: #0e1626; color: #9fb6d0; border: 1px solid #24405e; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="cv" width="1280" height="720"></canvas>
+<div id="bar">
+  <button onclick="play()">▶ 顺序播放（调试）</button>
+  <button onclick="window.__seek(30)">跳到 30s</button>
+</div>
+<script src="shots/rects.js"></script>
+<script>
+'use strict';
+/* 摸鱼瞳 上手教程 MV —— 真实界面截图 + 步骤讲解
+   渲染约定与品牌 MV 一致：renderAt(t) 定格渲染，?cap=1 抓帧模式 */
+const W = 1280, H = 720;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const DUR = 82;
+
+const BLUE = '#2f7bff', BLUE2 = '#6aa4ff', TXT = '#eef2f7', DIM = '#93a4bb', INK = '#05070b';
+
+/* 素材：真实监控台截图（已脱敏） */
+const SHOTS = {
+  overview: 'shots/01-overview.png',
+  feed:     'shots/02-feed.png',
+  reply:    'shots/04-settings-reply.png',
+  quiet:    'shots/05-settings-quiet.png',
+  engine:   'shots/06-settings-engine.png',
+  stickers: 'shots/07-stickers.png',
+  site:     'shots/08-site-download.png'
+};
+const IMGS = {};
+const ready = Promise.all(Object.entries(SHOTS).map(([k, src]) => {
+  if (src.endsWith('.html')) return null;
+  const im = new Image(); im.src = src; IMGS[k] = im;
+  return im.decode ? im.decode().catch(() => {}) : null;
+}));
+
+/* 头像 + 表情包示例（一次性预加载，别在渲染循环里 new Image） */
+const LOGO = new Image();
+LOGO.src = '../site/assets/moyutong-avatar-640.png';
+const TRIO = ['../site/assets/stk1.jpg', '../site/assets/stk4.jpg', '../site/assets/stk2.jpg']
+  .map((src) => { const im = new Image(); im.src = src; return im; });
+ready.then(() => {
+  LOGO.decode && LOGO.decode().catch(() => {});
+  return Promise.all(TRIO.map((im) => im.decode ? im.decode().catch(() => {}) : null));
+});
+
+/* 截图里控件的真实位置（截图时用 CDP 量出来的 CSS 像素），用于精确对齐高亮框 */
+const RECTS = (window.__RECTS = window.__RECTS || {});
+function rectToCanvas(shotName, id, zoom, fx, fy, box = FRAME) {
+  const R = RECTS[shotName];
+  const el = R && R.rects && R.rects[id];
+  if (!el) return null;
+  const im = IMGS[shotName === 'overview' ? 'overview'
+    : shotName === 'feed' ? 'feed'
+      : shotName === 'reply' ? 'reply'
+        : shotName === 'quiet' ? 'quiet'
+          : shotName === 'engine' ? 'engine'
+            : shotName === 'stickers' ? 'stickers' : 'site'];
+  if (!im || !im.naturalWidth) return null;
+  const k = im.naturalWidth / R.vw;        // 截图像素 / CSS 像素（=dpr）
+  const s = Math.max(box.w / im.naturalWidth, box.h / im.naturalHeight) * zoom;
+  const dx = box.x + (box.w - im.naturalWidth * s) * fx;
+  const dy = box.y + (box.h - im.naturalHeight * s) * fy;
+  return { x: dx + el.x * k * s, y: dy + el.y * k * s, w: el.w * k * s, h: el.h * k * s };
+}
+/* 高亮框（自动裁剪在画面内，避免被步骤说明卡压住） */
+function safeBox(b) {
+  const m = 12;
+  const x = Math.max(m, b.x), y = Math.max(52, b.y);
+  const w = Math.min(b.w, W - m - x), h = Math.min(b.h, H - 196 - y);
+  return { x, y, w: Math.max(w, 40), h: Math.max(h, 30) };
+}
+
+/* ---------- 工具 ---------- */
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const FONT = '"Microsoft YaHei", "PingFang SC", system-ui, sans-serif';
+const MONO = 'Consolas, "Cascadia Mono", monospace';
+
+function txt(s, x, y, { size = 20, weight = 500, color = TXT, align = 'left', font = FONT, alpha = 1, maxW } = {}) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'alphabetic';
+  if (maxW) ctx.fillText(s, x, y, maxW); else ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function rrectPath(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+/* 只描边不闭合：避免污染 evenodd 挖洞的子路径方向 */
+function rrectOutline(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+}
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  rrectPath(x, y, w, h, r);
+}
+
+/* 截图等比绘制（按 cover / contain + 焦点偏移） */
+function drawShot(im, box, zoom = 1, fx = 0.5, fy = 0.5) {
+  if (!im || !im.naturalWidth) return;
+  const bw = box.w, bh = box.h;
+  const s = Math.max(bw / im.naturalWidth, bh / im.naturalHeight) * zoom;
+  const dw = im.naturalWidth * s, dh = im.naturalHeight * s;
+  const dx = box.x + (bw - dw) * fx, dy = box.y + (bh - dh) * fy;
+  ctx.save();
+  rrect(box.x, box.y, box.w, box.h, 14); ctx.clip();
+  ctx.drawImage(im, dx, dy, dw, dh);
+  ctx.restore();
+}
+
+/* 高亮框：呼吸描边 + 角标 + 引线 */
+function spotlight(box, t, label) {
+  const pulse = 0.55 + 0.45 * Math.sin(t * 5);
+  ctx.save();
+  // 只画描边/角标/标签 —— 压暗与「框内还原」由调用方分步做，
+  // 这样 destination-out 不会连带擦掉截图内容
+  ctx.beginPath();
+  // 发光描边
+  ctx.strokeStyle = BLUE2;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = BLUE; ctx.shadowBlur = 22 * pulse;
+  ctx.beginPath();
+  rrectOutline(box.x - 6, box.y - 6, box.w + 12, box.h + 12, 12);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // 四角
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  const c = 22;
+  const corners = [[box.x - 6, box.y - 6, 1, 1], [box.x + box.w + 6, box.y - 6, -1, 1],
+                   [box.x - 6, box.y + box.h + 6, 1, -1], [box.x + box.w + 6, box.y + box.h + 6, -1, -1]];
+  for (const [cx, cy, sx, sy] of corners) {
+    ctx.beginPath();
+    ctx.moveTo(cx + sx * c, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * c);
+    ctx.stroke();
+  }
+  // 标签
+  if (label) {
+    ctx.font = `700 17px ${FONT}`;
+    const w = ctx.measureText(label).width + 22;
+    const ly = box.y - 44;
+    ctx.fillStyle = BLUE;
+    rrect(box.x - 6, ly, w, 30, 8); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, box.x + 5, ly + 16);
+  }
+  ctx.restore();
+}
+
+/* 底部说明条 */
+function caption(step, title, desc, alpha) {
+  if (alpha <= 0.01) return;
+  const y = H - 128, h = 104;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(10, 16, 28, 0)');
+  g.addColorStop(0.35, 'rgba(10, 16, 28, 0.88)');
+  g.addColorStop(1, 'rgba(6, 10, 18, 0.96)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, y, W, h);
+  // 步骤序号
+  ctx.fillStyle = BLUE;
+  rrect(64, y + 26, 52, 52, 12); ctx.fill();
+  txt(String(step).padStart(2, '0'), 90, y + 60, { size: 24, weight: 700, color: '#fff', align: 'center' });
+  txt(title, 134, y + 50, { size: 25, weight: 700, color: TXT });
+  txt(desc, 134, y + 82, { size: 16, weight: 400, color: DIM });
+  ctx.restore();
+}
+
+/* 顶部进度 + 标题 */
+function topbar(title, prog, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(6, 10, 18, 0.72)';
+  ctx.fillRect(0, 0, W, 46);
+  txt('摸鱼瞳 MoYuTong · 上手教程', 40, 30, { size: 16, weight: 600, color: TXT });
+  txt(title, W - 40, 30, { size: 15, weight: 400, color: DIM, align: 'right' });
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(0, 44, W, 2);
+  const grd = ctx.createLinearGradient(0, 0, W * prog, 0);
+  grd.addColorStop(0, BLUE); grd.addColorStop(1, '#bcd6ff');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 44, W * prog, 2);
+  ctx.restore();
+}
+
+/* 步骤切换的淡入淡出 */
+function stepAlpha(t, a, b, fade = 0.45) {
+  const inA = ease(seg(t, a, a + fade));
+  const outA = 1 - ease(seg(t, b - fade, b));
+  return Math.min(inA, outA);
+}
+
+/* ---------- 章节 ---------- */
+const STEPS = [
+  { a: 0,  b: 7,  title: '开始' },
+  { a: 7,  b: 15, title: '① 下载安装' },
+  { a: 15, b: 23, title: '② 启动服务' },
+  { a: 23, b: 32, title: '③ 登录大脑' },
+  { a: 32, b: 41, title: '④ 接上 QQ' },
+  { a: 41, b: 51, title: '⑤ 只回选中的会话' },
+  { a: 51, b: 60, title: '⑥ 群聊规矩' },
+  { a: 60, b: 70, title: '⑦ 表情包引擎' },
+  { a: 70, b: 76, title: '⑧ 实时动态' },
+  { a: 76, b: 82, title: '完成' }
+];
+
+function bg(t) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#070b14'); g.addColorStop(1, '#04060c');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // 网格地平线
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = 'rgba(106,164,255,0.07)';
+  ctx.lineWidth = 1;
+  for (let i = -8; i <= 8; i++) {
+    ctx.beginPath(); ctx.moveTo(W / 2 + i * 120, H); ctx.lineTo(W / 2 + i * 60, H * 0.42); ctx.stroke();
+  }
+  for (let i = 0; i < 8; i++) {
+    const y = H * 0.42 + Math.pow(i / 8, 2.1) * (H * 0.58);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* 截图在画面中的位置 */
+const FRAME = { x: 168, y: 82, w: 944, h: 420 };
+
+function renderAt(t) {
+  t = Math.max(0, Math.min(DUR, t));
+  bg(t);
+  const step = STEPS.find((s) => t >= s.a && t < s.b) || STEPS[STEPS.length - 1];
+  topbar(step.title, t / DUR);
+
+  /* 0 · 片头 */
+  if (t < 7) {
+    const p = ease(seg(t, 0.2, 1.6));
+    const out = 1 - ease(seg(t, 6.0, 7));
+    ctx.save();
+    ctx.globalAlpha = p * out;
+    if (LOGO.naturalWidth) {
+      const s = 150 * (0.92 + 0.08 * ease(seg(t, 0.2, 1.6)));
+      ctx.drawImage(LOGO, W / 2 - s / 2, 176 - (1 - p) * 20, s, s);
+    }
+    txt('摸鱼瞳 MoYuTong', W / 2, 392, { size: 54, weight: 700, color: TXT, align: 'center' });
+    txt('你 QQ 背后的 AI 搭子', W / 2, 436, { size: 22, weight: 400, color: BLUE2, align: 'center' });
+    // 分隔线
+    ctx.strokeStyle = 'rgba(106,164,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W / 2 - 120, 470); ctx.lineTo(W / 2 + 120, 470); ctx.stroke();
+    txt('8 步上手 · 装完就能用', W / 2, 508, { size: 19, weight: 400, color: DIM, align: 'center' });
+    txt('本地运行 · 免 API Key · AI 会自己发表情包', W / 2, 542, { size: 15, weight: 400, color: '#5c6c84', align: 'center' });
+    ctx.restore();
+    drawDots(t);
+    return;
+  }
+
+  /* 1 · 下载安装 —— 官网下载区块的真实截图（截图时已按区块裁剪） */
+  if (t >= 7 && t < 15) {
+    const a = stepAlpha(t, 7, 15);
+    const p = ease(seg(t, 7.6, 9.4));
+    const im = IMGS.site;
+    if (im && im.naturalWidth) {
+      const s = Math.min(FRAME.w / im.naturalWidth, 1.0);
+      const dw = im.naturalWidth * s, dh = im.naturalHeight * s;
+      const dx = (W - dw) / 2, dy = 96 + (FRAME.h - dh) / 2;
+      ctx.save();
+      rrect(dx - 8, dy - 8, dw + 16, dh + 16, 14); ctx.clip();
+      ctx.drawImage(im, dx, dy, dw, dh);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+      rrect(dx - 8, dy - 8, dw + 16, dh + 16, 14); ctx.stroke();
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = a;
+      const cx = Math.min(dx + dw + 40, W - 312), cy = dy + 16;
+      if (cx > dx + dw - 10) {
+        ctx.fillStyle = 'rgba(8, 14, 26, 0.96)'; rrect(cx, cy, 288, 96, 12); ctx.fill();
+        ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(cx, cy, 288, 96, 12); ctx.stroke();
+        txt('摸鱼瞳MoYuTong安装包.exe', cx + 20, cy + 36, { size: 16, weight: 600, color: TXT });
+        txt('2.4 MB · Windows', cx + 20, cy + 60, { size: 13, weight: 400, color: DIM });
+        ctx.fillStyle = BLUE; rrect(cx + 20, cy + 72, 228 * p, 5, 3); ctx.fill();
+      }
+      ctx.restore();
+    }
+    caption(1, '下载安装', '官网点「立即下载」，双击安装；默认装到 D:\\摸鱼瞳，覆盖安装不丢数据', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 2 · 启动服务 */
+  if (t >= 15 && t < 23) {
+    const a = stepAlpha(t, 15, 23);
+    stepShot(IMGS.overview, 'overview', 'cardQqMain', 'QQ 已连接', 200, t);
+    ctx.save(); ctx.globalAlpha = a;
+    txt('双击桌面「摸鱼瞳-启动」', FRAME.x + 300, FRAME.y + 84, { size: 20, weight: 600, color: TXT });
+    txt('面板会自动打开 http://127.0.0.1:8787', FRAME.x + 300, FRAME.y + 116, { size: 15, weight: 400, color: DIM });
+    ctx.restore();
+    caption(2, '启动服务', '双击「开启.bat」或桌面快捷方式，浏览器自动打开监控台', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 3 · 登录大脑 */
+  if (t >= 23 && t < 32) {
+    const a = stepAlpha(t, 23, 32);
+    stepShot(IMGS.overview, 'overview', 'btnDsOpen', '① 打开浏览器并登录', 230, t);
+    ctx.save(); ctx.globalAlpha = a;
+    const bx = 120, by = 540;
+    ctx.fillStyle = 'rgba(12,20,34,0.96)'; rrect(bx, by, 400, 96, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(bx, by, 400, 96, 12); ctx.stroke();
+    txt('扫码登录一次 DeepSeek', bx + 22, by + 38, { size: 18, weight: 600, color: TXT });
+    txt('免 API Key · 0 花费 · 登录态长期复用', bx + 22, by + 68, { size: 14, weight: 400, color: BLUE2 });
+    ctx.restore();
+    caption(3, '登录大脑', '点「① 打开浏览器并登录」扫码登录 DeepSeek 网页版，之后它自己开工', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 4 · 接上 QQ */
+  if (t >= 32 && t < 41) {
+    const a = stepAlpha(t, 32, 41);
+    stepShot(IMGS.stickers, 'stickers', 'setMode', 'QQ 接入', 220, t);
+    ctx.save(); ctx.globalAlpha = a;
+    txt('启动任意 OneBot 11 机器人端（NapCat / SnowLuma 等）', 140, 128, { size: 19, weight: 600, color: TXT });
+    txt('面板里填 WS 地址 ws://127.0.0.1:3001 → 保存 → 重启服务', 140, 160, { size: 15, weight: 400, color: DIM });
+    ctx.restore();
+    caption(4, '接上 QQ', 'OneBot 11 接入，面板填 WS 地址；连上后左上角显示「已连接」', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 5 · 只回选中的会话 */
+  if (t >= 41 && t < 51) {
+    const a = stepAlpha(t, 41, 51);
+    stepShot(IMGS.reply, 'reply', 'targetWrap', '指定会话（Ctrl 多选）', 200, t);
+    ctx.save(); ctx.globalAlpha = a;
+    const bx = 700, by = 528;
+    ctx.fillStyle = 'rgba(12,20,34,0.96)'; rrect(bx, by, 440, 96, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(bx, by, 440, 96, 12); ctx.stroke();
+    txt('选中的全部回复，其余一律不回', bx + 22, by + 40, { size: 18, weight: 600, color: TXT });
+    txt('一个都不选 = 全部回复', bx + 22, by + 70, { size: 14, weight: 400, color: BLUE2 });
+    ctx.restore();
+    caption(5, '只回该回的人', '「指定会话」可多选；群聊需 @ 才回、关键词过滤、引用原消息', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 6 · 群聊规矩 */
+  if (t >= 51 && t < 60) {
+    const a = stepAlpha(t, 51, 60);
+    stepShot(IMGS.quiet, 'quiet', 'setQuietEnabled', '免打扰时段', 220, t);
+    ctx.save(); ctx.globalAlpha = a;
+    const items = [
+      ['群聊需 @ 才回', '不打扰潜水党'],
+      ['群聊关键词', '命中才回，逗号分隔'],
+      ['免打扰时段', '到点自动闭嘴'],
+      ['主人指令', '/状态 /暂停 /帮助']
+    ];
+    items.forEach(([k, v], i) => {
+      const x = 742 + (i % 2) * 250, y = 512 + Math.floor(i / 2) * 70;
+      ctx.fillStyle = 'rgba(12,20,34,0.96)'; rrect(x, y, 236, 60, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(106,164,255,0.28)'; ctx.lineWidth = 1; rrect(x, y, 236, 60, 10); ctx.stroke();
+      txt(k, x + 16, y + 25, { size: 15, weight: 600, color: TXT });
+      txt(v, x + 16, y + 46, { size: 13, weight: 400, color: DIM });
+    });
+    ctx.restore();
+    caption(6, '规矩你来定', '@ 触发、关键词、免打扰时段、主人在 QQ 里发指令随时接管', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 7 · 表情包引擎 */
+  if (t >= 60 && t < 70) {
+    const a = stepAlpha(t, 60, 70);
+    stepShot(IMGS.stickers, 'stickers', 'stickerList', '表情包素材库', 180, t);
+    // 三连图示（贴在画面右下，不压截图）
+    ctx.save(); ctx.globalAlpha = a;
+    const s = 108, bw2 = s * 3 + 32, bh2 = s + 54;
+    const bx = W - bw2 - 48, by = H - 196 - bh2 - 18;
+    ctx.fillStyle = 'rgba(10,16,28,0.96)'; rrect(bx, by, bw2, bh2, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(bx, by, bw2, bh2, 12); ctx.stroke();
+    TRIO.forEach((im, i) => {
+      if (im.naturalWidth) ctx.drawImage(im, bx + 16 + i * (s + 8), by + 14, s, s);
+    });
+    txt('三连打包成一条消息发出', bx + 16, by + bh2 - 12, { size: 14, weight: 600, color: BLUE2 });
+    ctx.restore();
+    caption(7, 'AI 会自己发表情包', '自动收录来信表情包并留本地副本；AI 按提示词自主发表情包，不刷屏', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 8 · 实时动态 */
+  if (t >= 70 && t < 76) {
+    const a = stepAlpha(t, 70, 76);
+    stepShot(IMGS.feed, 'feed', 'feedList', '自主发表情包 ×3', 140, t);
+    ctx.save(); ctx.globalAlpha = a;
+    txt('每条消息的来龙去脉都在这', 140, 540, { size: 18, weight: 600, color: TXT });
+    txt('收到 / 已回复 / 跳过原因，实时滚动', 140, 570, { size: 14, weight: 400, color: DIM });
+    ctx.restore();
+    caption(8, '实时动态', '收到、回复、跳过原因一目了然；服务日志同时写入 data\\app.log', a);
+    drawDots(t);
+    return;
+  }
+
+  /* 9 · 片尾 */
+  const a9 = ease(seg(t, 76, 76.8));
+  ctx.save();
+  ctx.globalAlpha = a9;
+  ctx.fillStyle = 'rgba(4,6,12,0.82)';
+  ctx.fillRect(0, 0, W, H);
+  if (LOGO.naturalWidth) ctx.drawImage(LOGO, W / 2 - 70, 96, 140, 140);
+  txt('搞定了，开始摸鱼', W / 2, 300, { size: 40, weight: 700, color: TXT, align: 'center' });
+  txt('官网（含在线下载）  blushhorizon.github.io/MoYuTong', W / 2, 356, { size: 17, weight: 400, color: DIM, align: 'center' });
+  txt('源码  github.com/BlushHorizon/MoYuTong', W / 2, 388, { size: 17, weight: 400, color: DIM, align: 'center' });
+  ctx.strokeStyle = 'rgba(106,164,255,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W / 2 - 200, 424); ctx.lineTo(W / 2 + 200, 424); ctx.stroke();
+  txt('QQ 群 1128593359 · 入群暗号 moyutong520', W / 2, 466, { size: 19, weight: 600, color: BLUE2, align: 'center' });
+  txt('本地运行 · 免 API Key · 数据只在你自己的机器上', W / 2, 508, { size: 14, weight: 400, color: '#5c6c84', align: 'center' });
+  ctx.restore();
+  drawDots(t);
+}
+
+/* 截图按「裁切 + 放大」绘制：只框住要看的那块 UI，保证文字清晰 */
+function drawCrop(im, crop, box) {
+  const s = Math.max(box.w / crop.w, box.h / crop.h);
+  const dw = crop.w * s, dh = crop.h * s;
+  const dx = box.x + (box.w - dw) / 2, dy = box.y + (box.h - dh) / 2;
+  ctx.save();
+  rrect(box.x, box.y, box.w, box.h, 14); ctx.clip();
+  ctx.drawImage(im, crop.x, crop.y, crop.w, crop.h, dx, dy, dw, dh);
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+  rrect(box.x, box.y, box.w, box.h, 14); ctx.stroke();
+  ctx.restore();
+  return { s, dx, dy, cx: crop.x, cy: crop.y };
+}
+/* 把 CSS 像素的控件矩形映射到画面坐标（必须减去裁剪起点） */
+function mapRect(el, m, k) {
+  return {
+    x: m.dx + (el.x * k - m.cx) * m.s,
+    y: m.dy + (el.y * k - m.cy) * m.s,
+    w: el.w * k * m.s,
+    h: el.h * k * m.s
+  };
+}
+/* 一个步骤：按目标控件自动裁切 → 放大 → 描边高亮 */
+function stepShot(im, shotName, targetId, label, margin, t) {
+  const R = RECTS[shotName];
+  const el = R && R.rects && R.rects[targetId];
+  if (!el || !im || !im.naturalWidth) { drawShot(im, FRAME, 1, 0.5, 0.5); frameEdge(1); return null; }
+  const k = im.naturalWidth / R.vw;
+  const ix = el.x * k, iy = el.y * k, iw = el.w * k, ih = el.h * k;
+  const MIN_W = 1100, MIN_H = 620;   // 裁切下限，保证能看到上下文，不然会放大到失真
+  const cx = Math.max(0, ix - margin), cy = Math.max(0, iy - margin);
+  const cw = Math.min(im.naturalWidth - cx, Math.max(iw + margin * 2, MIN_W));
+  const ch = Math.min(im.naturalHeight - cy, Math.max(ih + margin * 2, MIN_H));
+  const m = drawCrop(im, { x: cx, y: cy, w: cw, h: ch }, FRAME);
+  const box = safeBox(mapRect(el, m, k));
+  spotlight(box, t, label);
+  window.__lastBox = box;
+  return box;
+}
+
+function frameEdge(a) {
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  rrect(FRAME.x, FRAME.y, FRAME.w, FRAME.h, 14); ctx.stroke();
+  ctx.restore();
+}
+
+/* 底部步骤指示点 */
+function drawDots(t) {
+  ctx.save();
+  for (let i = 0; i < STEPS.length; i++) {
+    const s = STEPS[i];
+    const on = t >= s.a && t < s.b;
+    const x = W / 2 - (STEPS.length - 1) * 11 + i * 22;
+    ctx.beginPath();
+    ctx.arc(x, H - 18, on ? 4.5 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = on ? BLUE : 'rgba(255,255,255,0.22)';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- 抓帧 / 播放模式 ---------- */
+window.renderAt = renderAt;
+if (new URLSearchParams(location.search).get('cap') === '1') {
+  document.getElementById('bar').style.display = 'none';   // 抓帧时不要调试按钮
+  ready.then(() => { renderAt(0); window.__ready = true; });
+} else {
+  window.__ready = true;
+  const t0 = performance.now();
+  (function loop(now) { renderAt((now - t0) / 1000); requestAnimationFrame(loop); })(t0);
+}
+window.__seek = (s) => renderAt(s);
+function play() { const t0 = performance.now(); (function l(n) { renderAt((n - t0) / 1000); requestAnimationFrame(l); })(t0); }
+</script>
+</body>
+</html>
