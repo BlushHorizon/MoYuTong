@@ -274,3 +274,29 @@ footer { border-top: 1px solid var(--line); background: var(--ink); }
 }
 .dl-note b { color: #ff8a5c; }
 .dl-note a { color: var(--blue2, #6aa4ff); text-decoration: underline; text-underline-offset: 3px; }
+/* ---------------- 关于作者 ---------------- */
+.author-box {
+  max-width: 820px;
+  margin-top: 36px;
+  background: rgba(59, 140, 255, .055);
+  border: 1px solid rgba(59, 140, 255, .22);
+  border-radius: 10px;
+  padding: 30px 34px;
+}
+.author-lead { font-size: 18px; line-height: 1.7; color: #eef2f7; margin: 0 0 18px; }
+.author-lead b { color: #7ec0ff; }
+.author-list { margin: 0 0 18px; padding-left: 20px; }
+.author-list li { font-size: 14.5px; line-height: 2; color: var(--dim); }
+.author-list li::marker { color: #4a7fd0; }
+.author-list b { color: #eef2f7; }
+.author-foot {
+  margin: 0; padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, .14);
+  font-size: 14px; line-height: 1.95; color: var(--dim);
+}
+.author-foot b { color: #eef2f7; }
+.author-box a { color: #7ec0ff; }
+@media (max-width: 640px) {
+  .author-box { padding: 22px 18px; }
+  .author-lead { font-size: 16px; }
+}
