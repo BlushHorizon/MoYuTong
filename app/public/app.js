@@ -259,7 +259,7 @@ async function refreshStickers() {
   const listEl = $('stickerList');
   try {
     const r = await api('/api/stickers');
-    statsEl.textContent = `素材：${r.count} 个（商城表情 ${r.mface} / 图片 ${r.image}）`;
+    statsEl.textContent = `素材：${r.count} 个（商城表情 ${r.mface} / 图片 ${r.image}）` + (r.items.length < r.count ? ` · 仅显示最近 ${r.items.length} 条` : '');
     listEl.innerHTML = r.items.length
       ? r.items.map((x) => `
         <div class="sticker-row">

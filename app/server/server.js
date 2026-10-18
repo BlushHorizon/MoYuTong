@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * 网页版 QQ 服务端
  *   - 托管 public/ 静态页面
@@ -233,7 +233,7 @@ function serveStatic(req, res, pathname) {
 async function handleApi(req, res, url) {
   const p = url.pathname;
 
-  if (p === '/api/status') {
+  if (p === '/api/status' && req.method === 'GET') {
     return sendJson(res, 200, {
       qq: qqStatus,
       self: adapter.self,
@@ -242,7 +242,7 @@ async function handleApi(req, res, url) {
     });
   }
 
-  if (p === '/api/events') {
+  if (p === '/api/events' && req.method === 'GET') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
@@ -257,7 +257,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  if (p === '/api/chats') {
+  if (p === '/api/chats' && req.method === 'GET') {
     return sendJson(res, 200, { chats: store.listChats() });
   }
 
@@ -266,7 +266,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { messages: store.historyForDisplay(chatId) });
   }
 
-  if (p === '/api/contacts') {
+  if (p === '/api/contacts' && req.method === 'GET') {
     try {
       const [friends, groups] = await Promise.all([
         adapter.fetchFriends().catch(() => []),
@@ -324,6 +324,7 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/settings') {
+    // 读=GET、写=POST（内层已限定），其他方法不放行
     if (req.method === 'GET') {
       const c = configLib.get();
       // 不回传明文 Key，只回传是否已配置
@@ -355,6 +356,9 @@ async function handleApi(req, res, url) {
       broadcast({ type: 'settings_changed', ai: ai.status(), qq: qqStatus });
       return sendJson(res, 200, { ok: true });
     }
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: '仅支持 GET / POST' }));
+    return;
   }
 
   /* ---------------- 网页版模型（切换模型） ---------------- */
@@ -386,7 +390,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (p === '/api/ai/deepseek/status') {
+  if (p === '/api/ai/deepseek/status' && req.method === 'GET') {
   return sendJson(res, 200, deepseek.status());
 }
 
