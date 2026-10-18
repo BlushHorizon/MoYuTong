@@ -43,7 +43,7 @@
 
 ### 方案 A：SnowLuma（你本机已在用，推荐）
 
-你机器上已经跑着 `D:\SnowLuma-v1.14.22-win-x64`（账号 1234567890），
+你机器上已经跑着 `D:\SnowLuma-v1.14.22-win-x64`（账号就是你自己的 QQ 号），
 配置文件在 `config\onebot_<QQ号>.json`，其中 `wsServers` 段就是连接信息：
 
 ```json
