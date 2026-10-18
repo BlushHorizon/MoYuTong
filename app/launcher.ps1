@@ -34,6 +34,26 @@ function Show-Msg([string]$text, [string]$title = '摸鱼瞳 MoYuTong') {
     }
 }
 
+function Test-BrowserHasUrl([string]$u) {
+    # 面板是否已经在某个浏览器窗口里开着。
+    # 不查的话，每双击一次「开启」就多一个浏览器窗口，跑一天能堆到几十个。
+    try {
+        $procs = Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe' OR Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue
+        foreach ($p in $procs) {
+            if ($p.CommandLine -and $p.CommandLine.Contains($u)) { return $true }
+        }
+    } catch { }
+    return $false
+}
+
+function Open-PanelOnce([string]$u) {
+    if (Test-BrowserHasUrl $u) {
+        try { Write-Host '  面板已在浏览器中打开，跳过重复开窗。' -ForegroundColor DarkGray } catch { }
+        return
+    }
+    Start-Process $u
+}
+
 function Test-Port([int]$p) {
     $client = New-Object System.Net.Sockets.TcpClient
     try {
@@ -91,7 +111,7 @@ if (-not $node) {
 
 # ---------- 服务已在运行则直接开网页 ----------
 if (Test-Port $port) {
-    if (-not $NoBrowser) { Start-Process $url }
+    if (-not $NoBrowser) { Open-PanelOnce $url }
     if ($LiveConsole) {
         try { $Host.UI.RawUI.WindowTitle = 'MoYuTong' } catch { }
         Write-Host ''
@@ -108,7 +128,7 @@ try { Remove-Item $stopFlag -Force -ErrorAction SilentlyContinue } catch { }
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 # 日志统一由 node 侧写入 data\app.log（追加式，控制台窗口是它的实时视图），无需重定向
 
-if (-not $NoBrowser) { Start-Process $url }
+if (-not $NoBrowser) { Open-PanelOnce $url }
 
 if ($LiveConsole) {
     # 实时控制台模式：本窗口就是程序 —— 日志直接滚动，关掉窗口 = 停止服务
