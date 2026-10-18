@@ -268,19 +268,18 @@ function sceneChorus(t) {
   ctx.strokeRect(6, 6, W - 12, H - 12); ctx.restore();
 }
 
-const MODELS = [
-  ['DeepSeek', 'deepseek', CY], ['通义千问', 'qianwen', '#ff8a3d'], ['Kimi', 'kimi', '#6fd0ff'], ['小米 MiMo', 'mimo', PK]
-];
+const MODELS = [['DeepSeek', 'deepseek', CY]];
 function sceneVerse2(t) {
   gridFloor(t, 0.12);
-  glowText('换个大脑 一样顺手', W / 2, 58, 54, TXT, { glow: 24 });
-  for (let i = 0; i < 4; i++) {
+  glowText('一个大脑 顶呱呱', W / 2, 58, 54, TXT, { glow: 24, maxW: W - 120 });
+  const n = MODELS.length;
+  for (let i = 0; i < n; i++) {
     const at = 26.6 + i * 0.8;
     const p = ease(seg(t, at, at + 0.6));
     const [name, , color] = MODELS[i];
-    const x = W / 2 + (i - 1.5) * 290;
+    const x = W / 2 + (i - (n - 1) / 2) * 290;
     const y = 330 + Math.sin(t * 2 + i) * 8;
-    const w = 250, h = 170;
+    const w = n > 1 ? 250 : 420, h = 170;
     ctx.save();
     ctx.translate(x, y); ctx.rotate((1 - p) * 0.5); ctx.scale(0.6 + p * 0.4, 0.6 + p * 0.4);
     ctx.globalAlpha = p;
@@ -296,14 +295,16 @@ function sceneVerse2(t) {
     }
     ctx.restore();
   }
-  // 切换箭头（画在卡片之间的空隙）
-  ctx.save(); ctx.globalAlpha = 0.6 * ease(seg(t, 27.0, 27.8));
-  for (let i = 0; i < 3; i++) {
-    glowText('›', W / 2 + (i - 1) * 290, 330, 40, DIM, { alpha: 0.8 });
+  // 切换箭头（只有一个引擎时不需要）
+  if (MODELS.length > 1) {
+    ctx.save(); ctx.globalAlpha = 0.6 * ease(seg(t, 27.0, 27.8));
+    for (let i = 0; i < MODELS.length - 1; i++) {
+      glowText('›', W / 2 + i * 290, 330, 40, DIM, { alpha: 0.8 });
+    }
+    ctx.restore();
   }
-  ctx.restore();
-  lyric(t, '四个网页版 随便切', 28.6, VI, 205);
-  lyric(t, '免 Key · 免 API 费', 30.4, CY, 205);
+  lyric(t, '网页版直连 不用 Key', 28.6, VI, 205);
+  lyric(t, '免 API 费 装好就用', 30.4, CY, 205);
 }
 
 function sceneOutro(t) {
@@ -353,7 +354,7 @@ function sceneOutro(t) {
   // 收尾标题
   const fin = seg(t, 34.8, 35.6);
   glowText('深瞳 DeepPupil', W / 2, 620, 44, TXT, { alpha: ease(fin), glow: 26, maxW: W - 120 });
-  mono('deepseek · qianwen · kimi · mimo —— 你 QQ 背后的 AI 搭子', W / 2, 664, 16, DIM, ease(fin) * 0.9, 'center', W - 120);
+  mono('deepseek-web —— 你 QQ 背后的 AI 搭子', W / 2, 664, 16, DIM, ease(fin) * 0.9, 'center', W - 120);
 }
 
 /* ---------- 主渲染 ---------- */

@@ -32,7 +32,7 @@
       <p class="kicker">本地运行 · 免 API Key · 数据不出机</p>
       <h1>你 QQ 背后的 <span class="grad">AI 搭子</span></h1>
       <p class="lede">深瞳接管你 QQ 的消息流：按你定的规矩替你回复，<b>还会自己发表情包</b>。
-        大脑直接用网页版大模型 —— DeepSeek / 通义千问 / Kimi / 小米 MiMo 随便切，不花 API 费。</p>
+        大脑直接用 <b>DeepSeek 网页版</b> —— 免 API Key、免 API 费。</p>
       <p class="typed-line"></p>
       <div class="cta">
         <a class="btn btn-primary" href="assets/深瞳DeepPupil安装包.exe" download>⬇ 立即下载（Windows · 2.4 MB）</a>
@@ -69,8 +69,8 @@
     <div class="grid2 reveal">
       <article class="card">
         <div class="ico">🧠</div>
-        <h3>网页版大模型直连</h3>
-        <p>DeepSeek、通义千问、Kimi、小米 MiMo 四套站点档案，一键切换；同话题随时换大脑，上下文不乱。有 OpenAI 兼容 Key 也能走 API。</p>
+        <h3>网页版 DeepSeek 直连</h3>
+        <p>不碰 API，直接驱动 chat.deepseek.com：<b>免 Key、免 API 费</b>。用独立浏览器配置目录记住登录态，重启不丢；50 轮自动开新对话并重发提示词。</p>
       </article>
       <article class="card">
         <div class="ico">🖼️</div>
@@ -112,15 +112,12 @@
 
   <!-- 模型 -->
   <section class="wrap sec" id="models">
-    <h2 class="sec-title reveal">四个网页版大脑，一键切</h2>
-    <p class="sec-sub reveal">同一套浏览器驱动，按站点档案跑；登录态保存在本机浏览器目录，重启不丢。</p>
+    <h2 class="sec-title reveal">大脑：DeepSeek 网页版</h2>
+    <p class="sec-sub reveal">一个引擎，专注做好一件事。登录态保存在本机浏览器目录里，重启不丢。</p>
     <div class="grid4 reveal" id="modelCards">
-      <article class="card model" style="--c:#35c8ff"><h3>DeepSeek</h3><p>免 Key 网页版 · 支持看图</p></article>
-      <article class="card model" style="--c:#ff8a3d"><h3>通义千问</h3><p>阿里账号登录一次</p></article>
-      <article class="card model" style="--c:#6fd0ff"><h3>Kimi</h3><p>月之暗面账号</p></article>
-      <article class="card model" style="--c:#ff5fa2"><h3>小米 MiMo</h3><p>MiMo-V2.6-Pro 演示平台</p></article>
+      <article class="card model" style="--c:#35c8ff"><h3>DeepSeek</h3><p>免 Key 网页版直连 · 支持看图回复</p></article>
     </div>
-    <p class="fine center reveal">另有「OpenAI 兼容 API」模式：任何兼容接口（本地 Ollama、中转站、各家 API）填 baseUrl + Key + model 即可。</p>
+    <p class="fine center reveal">另有「API 接口」模式：任何 OpenAI 兼容服务（本地 Ollama、各家中转站）填 baseUrl + Key + model 即可切换。</p>
   </section>
 
   <!-- 界面 -->
@@ -165,12 +162,12 @@
   <section class="wrap sec" id="faq">
     <h2 class="sec-title reveal">常见问题</h2>
     <div class="faq reveal">
-      <details><summary>需要 API Key 吗？</summary><p>不需要。默认走网页版大模型（免 Key、免 API 费）。如果你手里有 OpenAI 兼容的 Key，面板里也能填，走 API 模式。</p></details>
+      <details><summary>需要 API Key 吗？</summary><p>不需要。默认直接驱动 DeepSeek 网页版（免 Key、免 API 费）。如果你手里有 OpenAI 兼容的 Key，面板里也能填，走 API 模式。</p></details>
       <details><summary>会不会被 QQ 风控/封号？</summary><p>高频发消息/发图是风控大头，深瞳内置：回复最小间隔、表情包批量打包成一条消息、40 秒表情冷却、免打扰时段。建议用小号，遵守平台规则，个人自用。</p></details>
       <details><summary>表情包哪来的？</summary><p>自动收集所有进来的消息：商城表情（mface）与图片都会入库，并下载本地副本（QQ 图链会过期，本地副本不会）。面板里可以逐条删除或一键清空。</p></details>
       <details><summary>它会乱说话吗？</summary><p>提示词（人设）在面板里写死给你，每段新对话自动发一次；群里还有 @ 规则、关键词过滤、概率回复替你兜底。</p></details>
       <details><summary>数据在哪？安全吗？</summary><p>全在本机：D:\深瞳\data（配置、日志、表情包库、浏览器登录态）。不联网上传任何聊天内容。</p></details>
-      <details><summary>换模型会丢上下文吗？</summary><p>会开一段新对话并自动重发完整提示词（含表情包能力段），就像你在网页上按了「新对话」。想立刻生效点面板上的「② 新建对话」。</p></details>
+      <details><summary>上下文断了怎么办？</summary><p>每段对话开头自动发一次完整提示词（含表情包能力段）；答满 50 轮自动开新对话。想立刻重置，点面板上的「② 新建对话」。</p></details>
       <details><summary>成本？</summary><p>0 元。安装包 2.4 MB，运行全本地。</p></details>
     </div>
   </section>
