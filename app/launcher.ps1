@@ -112,7 +112,7 @@ if (-not $NoBrowser) { Start-Process $url }
 
 if ($LiveConsole) {
     # 实时控制台模式：本窗口就是程序 —— 日志直接滚动，关掉窗口 = 停止服务
-    try { $Host.UI.RawUI.WindowTitle = 'MoYuTong ' + [char]0x6DF1 + [char]0x77B3 + ' ' + [char]0x65E5 + [char]0x5FD7 } catch { }
+    try { $Host.UI.RawUI.WindowTitle = 'MoYuTong ' + [char]0x6478 + [char]0x9C7C + [char]0x77B3 + ' ' + [char]0x65E5 + [char]0x5FD7 } catch { }
     Write-Host ''
     Write-Host ('  摸鱼瞳 MoYuTong 已启动 · ' + (Get-Date -Format 'HH:mm:ss')) -ForegroundColor Green
     Write-Host '  关闭本窗口 = 停止服务；也可用「关闭」停止。'
