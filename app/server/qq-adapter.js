@@ -44,6 +44,7 @@ class OneBotAdapter extends EventEmitter {
     this._echo = 0;
     this._pending = new Map();
     this._closedByUser = false;
+    this._retryTimer = null;   // 重连定时器句柄（close() 要靠它清理）
   }
 
   connect() {
@@ -123,11 +124,18 @@ class OneBotAdapter extends EventEmitter {
   }
 
   _reconnect() {
-    setTimeout(() => this.connect(), 5000);
+    // 必须留住定时器句柄，否则 close() 清不掉：
+    // 旧适配器会在关闭 5 秒后自己诈尸重连，和新适配器抢同一个 OneBot 连接。
+    if (this._retryTimer) clearTimeout(this._retryTimer);
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this.connect();
+    }, 5000);
   }
 
   close() {
     this._closedByUser = true;
+    if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     try { this.ws?.close(); } catch { /* ignore */ }
   }
 

@@ -394,9 +394,11 @@ async function saveSettings() {
       }
     }
   };
-  await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
+  const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
   $('settingsModal').classList.add('hidden');
   await refreshStatus();
+  /* QQ 接入参数变了 → 服务端已自动重建适配器重连，明确告知，免得以为改了没生效 */
+  if (resp && resp.qqReconnected) alert('设置已保存。\n\n正在按新地址重连 QQ：\n' + payload.qq.onebot.wsUrl + '\n\n看顶部 QQ 状态，等它变成「已连接」即可。');
 }
 
 /* ---------------- SSE ---------------- */

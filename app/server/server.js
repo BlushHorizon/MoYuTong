@@ -90,12 +90,33 @@ function broadcast(evt) {
 let adapter = createAdapter(cfg.qq);
 let qqStatus = { connected: false, message: '未连接', mode: cfg.qq.mode };
 
-adapter.on('status', (s) => {
-  qqStatus = { ...s, mode: cfg.qq.mode };
-  console.log(`[qq:${cfg.qq.mode}] ${s.message}`);
+/** 把适配器的事件绑到当前外壳（重建适配器时要重新绑一遍） */
+function bindAdapterEvents() {
+  adapter.on('status', (s) => {
+    qqStatus = { ...s, mode: configLib.get().qq.mode };
+    console.log(`[qq:${qqStatus.mode}] ${s.message}`);
+    broadcast({ type: 'qq_status', status: qqStatus, ai: ai.status() });
+    if (s.connected && qqStatus.mode === 'onebot') seedContacts();
+  });
+  /* 其余事件在下方统一挂载（见 startAdapter 之后的 bindAdapterEvents 调用） */
+}
+bindAdapterEvents();
+
+/**
+ * 用当前配置重建 QQ 适配器并重连。
+ * 改过 OneBot WS 地址 / AccessToken / 接入模式后必须走这里——
+ * 直接 adapter.connect() 会复用启动时的旧 wsUrl，填什么都没用。
+ */
+function rebuildAdapter(reason = '') {
+  const qqCfg = configLib.get().qq;        // 重新从 config 取，确保拿到刚保存的值
+  try { adapter.close(); } catch { /* noop */ }
+  adapter = createAdapter(qqCfg);
+  bindAdapterEvents();
+  qqStatus = { connected: false, message: '正在重连…', mode: qqCfg.mode };
   broadcast({ type: 'qq_status', status: qqStatus, ai: ai.status() });
-  if (s.connected && cfg.qq.mode === 'onebot') seedContacts();
-});
+  console.log(`[qq] 按新配置重建适配器${reason ? '（' + reason + '）' : ''}：${qqCfg.mode === 'onebot' ? qqCfg.onebot?.wsUrl : '演示模式'}`);
+  setTimeout(() => { try { adapter.connect(); } catch (e) { console.warn('[qq] 重连失败:', e.message); } }, 300);
+}
 
 /** 把好友/群拉进会话列表，这样网页打开就能直接看到全部联系人 */
 let seeding = false;
@@ -350,6 +371,8 @@ async function handleApi(req, res, url) {
         if (!body.ai.apiKey || body.ai.apiKey === '********') patch.ai.apiKey = configLib.get().ai.apiKey;
       }
       if (body.qq) patch.qq = body.qq;
+      /* 先记下旧的 QQ 接入配置，判断是否需要重建适配器 */
+      const beforeQQ = JSON.stringify(configLib.get().qq);
       configLib.save(patch);
       if (patch.ai) {
         const c = configLib.get();
@@ -361,8 +384,15 @@ async function handleApi(req, res, url) {
           browserPath: c.ai.browserPath
         });
       }
+      /* QQ 接入方式 / WS 地址 / AccessToken 变了 → 按新配置重建适配器并重连。
+         不这么做的话，改了端口也白改：适配器启动时就固定了 wsUrl。 */
+      let qqReconnected = false;
+      if (patch.qq && JSON.stringify(configLib.get().qq) !== beforeQQ) {
+        qqReconnected = true;
+        rebuildAdapter('设置已修改');
+      }
       broadcast({ type: 'settings_changed', ai: ai.status(), qq: qqStatus });
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, qqReconnected });
     }
     res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: '仅支持 GET / POST' }));
@@ -454,8 +484,8 @@ if (p === '/api/dev/ai-reply' && req.method === 'POST') {
   }
 
 if (p === '/api/qq/reconnect' && req.method === 'POST') {
-    try { adapter.close(); } catch { /* noop */ }
-    setTimeout(() => adapter.connect(), 300);
+    /* 必须重建而不是复用，否则仍然连的是启动时的旧地址 */
+    rebuildAdapter('手动重连');
     return sendJson(res, 200, { ok: true });
   }
 
