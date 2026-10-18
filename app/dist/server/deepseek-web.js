@@ -202,6 +202,7 @@ class DeepSeekWeb {
       try { page = await this.findPage(); } catch { page = null; }
       if (page && page.webSocketDebuggerUrl) break;
       page = null;
+      if (i === 2) await this._newTab(this.site.url);   // 自愈：切站点后页面没开就自己开
       await sleep(1000);
     }
     if (!page) {
@@ -593,12 +594,27 @@ class DeepSeekWeb {
     return ready;
   }
 
-  /** 手动打开页面（双击快捷方式后可用） */
+  /**
+   * 打开一个新标签页（浏览器已在运行时也能把站点开出来）。
+   * CDP 的 /json/new 接口：新版 Chromium 只收 PUT，老的收 GET，两个都试。
+   */
+  async _newTab(url) {
+    for (const method of ['PUT', 'GET']) {
+      try {
+        const resp = await fetch(`http://127.0.0.1:${this.port}/json/new?${encodeURIComponent(url)}`, { method });
+        if (resp.ok) return true;
+      } catch { /* 换下一种方式 */ }
+    }
+    return false;
+  }
+
+  /** 手动打开页面（双击快捷方式后可用）：已有就复用，没有就新开标签页 */
   async openPage() {
     if (!(await this.ensureBrowser())) return false;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 8; i++) {
       const page = await this.findPage().catch(() => null);
       if (page) return true;
+      if (i === 0) await this._newTab(this.site.url);   // 关键：没有页面就自己开一个
       await sleep(800);
     }
     return false;
