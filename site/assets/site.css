@@ -300,3 +300,21 @@ footer { border-top: 1px solid var(--line); background: var(--ink); }
   .author-box { padding: 22px 18px; }
   .author-lead { font-size: 16px; }
 }
+/* 内测号召块（视觉上要比正文更跳） */
+.author-hi {
+  margin: 22px 0 18px;
+  padding: 20px 22px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(94, 230, 168, .12), rgba(59, 140, 255, .10));
+  border: 1px solid rgba(94, 230, 168, .32);
+}
+.author-hi p { margin: 0 0 8px; font-size: 14px; line-height: 1.85; color: var(--dim); }
+.author-hi p:last-child { margin-bottom: 0; }
+.author-hi b { color: #eef2f7; }
+.author-hi-t {
+  font-size: 18px !important; font-weight: 700;
+  color: #5ee6a8 !important; margin-bottom: 10px !important;
+}
+.author-perk { font-size: 14.5px !important; }
+.author-perk b { color: #5ee6a8; }
+.author-box hr { display: none; }
