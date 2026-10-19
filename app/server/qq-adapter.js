@@ -49,6 +49,15 @@ class OneBotAdapter extends EventEmitter {
 
   connect() {
     this._closedByUser = false;
+    // 已有的 socket 先关掉：connect() 可能被重复调用（改设置重建 + 手动重连），
+    // 不关的话旧连接会一直挂着，和新连接抢同一个 OneBot 服务。
+    // 注意：旧 socket 的 close 事件要靠下面的 `this.ws !== ws` 判断屏蔽掉，
+    // 否则它还会再排一次 5 秒重连，越滚越多。
+    if (this.ws) {
+      const old = this.ws;
+      this.ws = null;
+      try { old.close(); } catch { /* noop */ }
+    }
     // accessToken 统一走 query 参数（NapCat / SnowLuma / Lagrange 均支持）
     let url = this.wsUrl;
     if (this.accessToken && !/[?&]access_token=/.test(url)) {
@@ -65,6 +74,7 @@ class OneBotAdapter extends EventEmitter {
     this.ws = ws;
 
     ws.addEventListener('open', async () => {
+      if (this.ws !== ws) return;   // 已被新连接取代，旧 socket 的事件全部忽略
       this.connected = true;
       this.emit('status', { connected: true, message: '已连接 OneBot 服务' });
       try {
@@ -74,17 +84,18 @@ class OneBotAdapter extends EventEmitter {
           try { info = await this.call('get_login_info'); }
           catch { await new Promise(r => setTimeout(r, 1500)); }
         }
-        if (info) {
+        if (info && this.ws === ws) {
           this.self = { userId: info.user_id, nickname: info.nickname || '' };
           this.emit('status', { connected: true, message: `已连接：${this.self.nickname}(${this.self.userId})`, self: this.self });
         }
       } catch { /* 忽略取登录信息失败 */ }
       try {
-        await this.call('get_version_info');
+        if (this.ws === ws) await this.call('get_version_info');
       } catch { /* 可选动作 */ }
     });
 
     ws.addEventListener('message', (ev) => {
+      if (this.ws !== ws) return;
       let data;
       try { data = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data)); }
       catch { return; }
@@ -97,6 +108,7 @@ class OneBotAdapter extends EventEmitter {
     });
 
     ws.addEventListener('close', () => {
+      if (this.ws !== ws) return;   // 旧 socket 的关闭事件，别触发重连
       this.connected = false;
       for (const [, p] of this._pending) { clearTimeout(p.timer); p.reject(new Error('连接已断开')); }
       this._pending.clear();
@@ -105,6 +117,7 @@ class OneBotAdapter extends EventEmitter {
     });
 
     ws.addEventListener('error', () => {
+      if (this.ws !== ws) return;
       this.emit('status', { connected: false, message: '连接错误（NapCat 未启动？）' });
     });
   }

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * 网页版 QQ 服务端
  *   - 托管 public/ 静态页面
@@ -54,6 +54,14 @@ _rotateIfNeeded();
 {
   const d = new Date(); const p = (n) => String(n).padStart(2, '0');
   console.log(`======== 摸鱼瞳 MoYuTong 服务启动 ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ========`);
+  console.log('  -----------------------------------------------');
+  console.log('  ⚠️ 玩具级学习作品，非生产级产品。使用即表示你已接受：');
+  console.log('     · 自动发送 AI 生成内容到 QQ，请勿用于骚扰/刷屏，建议小号');
+  console.log('     · 本软件仅学习使用，请在 24h 内删除——它是玩具，试过就好');
+  console.log('     · 非反代/无中转/无逆向，但 CDP 驱动网页版违反 DeepSeek 用户协议');
+  console.log('     · 数据仅存本机，无遥测；一切后果由使用者自担');
+  console.log('     · 侵权/投诉/合作：1413214574@qq.com   MIT 开源');
+  console.log('  -----------------------------------------------');
 }
 /** 运行计数（由 broadcast 汇总，供心跳行输出） */
 const stats = { inMsgs: 0, aiReplies: 0, skips: 0 };
@@ -82,12 +90,50 @@ function broadcast(evt) {
 let adapter = createAdapter(cfg.qq);
 let qqStatus = { connected: false, message: '未连接', mode: cfg.qq.mode };
 
-adapter.on('status', (s) => {
-  qqStatus = { ...s, mode: cfg.qq.mode };
-  console.log(`[qq:${cfg.qq.mode}] ${s.message}`);
+/**
+ * 把适配器的事件绑到当前外壳。
+ * 重建适配器后必须重新绑一遍——不然新实例收不到任何消息，
+ * 界面显示"已连接"其实是个聋子（这是改端口那个修法的配套坑）。
+ */
+function bindAdapterEvents(a = adapter) {
+  a.on('status', (s) => {
+    qqStatus = { ...s, mode: configLib.get().qq.mode };
+    console.log(`[qq:${qqStatus.mode}] ${s.message}`);
+    broadcast({ type: 'qq_status', status: qqStatus, ai: ai.status() });
+    if (s.connected && qqStatus.mode === 'onebot') seedContacts();
+  });
+  a.on('event', onAdapterEvent);
+}
+bindAdapterEvents();
+
+/**
+ * 用当前配置重建 QQ 适配器并重连。
+ * 改过 OneBot WS 地址 / AccessToken / 接入模式后必须走这里——
+ * 直接 adapter.connect() 会复用启动时的旧 wsUrl，填什么都没用。
+ */
+let adapterRetryTimer = null;
+function rebuildAdapter(reason = '') {
+  const qqCfg = configLib.get().qq;        // 重新从 config 取，确保拿到刚保存的值
+  try { adapter.close(); } catch { /* noop */ }
+  const next = createAdapter(qqCfg);
+  adapter = next;
+  bindAdapterEvents(next);
+  // AI 回复、表情包发送都各自存了一份 adapter 引用，必须一起换成新实例，
+  // 否则它们会继续对着已经 close() 的旧连接发消息 → 全部报「OneBot 未连接」
+  try { ai.adapter = next; } catch { /* 启动早期还没建好 */ }
+  try { stickerLib.adapter = next; } catch { /* 同上 */ }
+  qqStatus = { connected: false, message: '正在重连…', mode: qqCfg.mode };
   broadcast({ type: 'qq_status', status: qqStatus, ai: ai.status() });
-  if (s.connected && cfg.qq.mode === 'onebot') seedContacts();
-});
+  console.log(`[qq] 按新配置重建适配器${reason ? '（' + reason + '）' : ''}：${qqCfg.mode === 'onebot' ? qqCfg.onebot?.wsUrl : '演示模式'}`);
+  // 连点「保存」会短时间内调用多次：只保留最后一个待连实例，
+  // 否则几次 300ms 定时器一起触发，会同时建出多条 OneBot 连接
+  if (adapterRetryTimer) { clearTimeout(adapterRetryTimer); adapterRetryTimer = null; }
+  adapterRetryTimer = setTimeout(() => {
+    adapterRetryTimer = null;
+    if (adapter !== next) return;          // 期间又被重建过，这个实例已作废
+    try { next.connect(); } catch (e) { console.warn('[qq] 重连失败:', e.message); }
+  }, 300);
+}
 
 /** 把好友/群拉进会话列表，这样网页打开就能直接看到全部联系人 */
 let seeding = false;
@@ -110,7 +156,12 @@ async function seedContacts() {
   }
 }
 
-adapter.on('event', async (msg) => {
+/**
+ * 收到一条 QQ 来信（事件处理主体）。
+ * 用函数声明而不是就地绑箭头函数：它是被 bindAdapterEvents 复用的，
+ * 重建适配器时才能把同一个处理函数重新挂到新实例上。
+ */
+function onAdapterEvent(msg) {
   const chat = store.ensureChat(msg.chatType, msg.chatId, msg.chatName || undefined);
   if (!msg.chatName && msg.chatType === 'private') chat.name = msg.fromName || chat.name;
   store.addMessage(msg);
@@ -127,7 +178,7 @@ adapter.on('event', async (msg) => {
 
   // 触发 AI 自动回复（EAgent 式自动应答）
   ai.handle(msg).catch((e) => console.warn('[ai] handle 出错:', e.message));
-});
+}
 
 /* ---------------- AI ---------------- */
 const deepseek = new DeepSeekWeb({
@@ -233,7 +284,7 @@ function serveStatic(req, res, pathname) {
 async function handleApi(req, res, url) {
   const p = url.pathname;
 
-  if (p === '/api/status') {
+  if (p === '/api/status' && req.method === 'GET') {
     return sendJson(res, 200, {
       qq: qqStatus,
       self: adapter.self,
@@ -242,7 +293,7 @@ async function handleApi(req, res, url) {
     });
   }
 
-  if (p === '/api/events') {
+  if (p === '/api/events' && req.method === 'GET') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
@@ -257,7 +308,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  if (p === '/api/chats') {
+  if (p === '/api/chats' && req.method === 'GET') {
     return sendJson(res, 200, { chats: store.listChats() });
   }
 
@@ -266,7 +317,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { messages: store.historyForDisplay(chatId) });
   }
 
-  if (p === '/api/contacts') {
+  if (p === '/api/contacts' && req.method === 'GET') {
     try {
       const [friends, groups] = await Promise.all([
         adapter.fetchFriends().catch(() => []),
@@ -324,12 +375,22 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/settings') {
+    // 读=GET、写=POST（内层已限定），其他方法不放行
     if (req.method === 'GET') {
       const c = configLib.get();
-      // 不回传明文 Key，只回传是否已配置
+      const token = c.qq?.onebot?.accessToken || '';
+      // 凭证一律不回明文：Key 只回「已配置」，Token 只回后 4 位。
+      // 面板是全屏可截图的，明文摆在那儿等于随手泄露。
       return sendJson(res, 200, {
         server: c.server,
-        qq: c.qq,
+        qq: {
+          ...c.qq,
+          onebot: {
+            ...c.qq.onebot,
+            accessToken: token ? '********' + token.slice(-4) : '',
+            hasToken: !!token
+          }
+        },
         ai: { ...c.ai, apiKey: c.ai.apiKey ? '********' : '', hasKey: !!c.ai.apiKey }
       });
     }
@@ -340,7 +401,17 @@ async function handleApi(req, res, url) {
         patch.ai = { ...body.ai };
         if (!body.ai.apiKey || body.ai.apiKey === '********') patch.ai.apiKey = configLib.get().ai.apiKey;
       }
-      if (body.qq) patch.qq = body.qq;
+      if (body.qq) {
+        patch.qq = { ...body.qq };
+        const nextOb = patch.qq.onebot;
+        if (nextOb && typeof nextOb.accessToken === 'string') {
+          const prev = configLib.get().qq?.onebot?.accessToken || '';
+          // 掩码原样回传 → 保留原值（用户没动这一栏）；留空 → 明确清除
+          if (/^\*{4,}[A-Za-z0-9_-]{0,8}$/.test(nextOb.accessToken)) nextOb.accessToken = prev;
+        }
+      }
+      /* 先记下旧的 QQ 接入配置，判断是否需要重建适配器 */
+      const beforeQQ = JSON.stringify(configLib.get().qq);
       configLib.save(patch);
       if (patch.ai) {
         const c = configLib.get();
@@ -352,9 +423,19 @@ async function handleApi(req, res, url) {
           browserPath: c.ai.browserPath
         });
       }
+      /* QQ 接入方式 / WS 地址 / AccessToken 变了 → 按新配置重建适配器并重连。
+         不这么做的话，改了端口也白改：适配器启动时就固定了 wsUrl。 */
+      let qqReconnected = false;
+      if (patch.qq && JSON.stringify(configLib.get().qq) !== beforeQQ) {
+        qqReconnected = true;
+        rebuildAdapter('设置已修改');
+      }
       broadcast({ type: 'settings_changed', ai: ai.status(), qq: qqStatus });
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, qqReconnected });
     }
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: '仅支持 GET / POST' }));
+    return;
   }
 
   /* ---------------- 网页版模型（切换模型） ---------------- */
@@ -386,7 +467,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (p === '/api/ai/deepseek/status') {
+  if (p === '/api/ai/deepseek/status' && req.method === 'GET') {
   return sendJson(res, 200, deepseek.status());
 }
 
@@ -442,8 +523,8 @@ if (p === '/api/dev/ai-reply' && req.method === 'POST') {
   }
 
 if (p === '/api/qq/reconnect' && req.method === 'POST') {
-    try { adapter.close(); } catch { /* noop */ }
-    setTimeout(() => adapter.connect(), 300);
+    /* 必须重建而不是复用，否则仍然连的是启动时的旧地址 */
+    rebuildAdapter('手动重连');
     return sendJson(res, 200, { ok: true });
   }
 

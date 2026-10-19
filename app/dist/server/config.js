@@ -4,6 +4,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { writeFileAtomic, readFileText } = require('./atomic');
 
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
@@ -81,13 +82,30 @@ function load() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       // 兼容带 BOM 的文件（PowerShell 的 UTF8 编码会写入 BOM）
-      const rawText = fs.readFileSync(CONFIG_PATH, 'utf8').replace(/^\uFEFF/, '');
+      const rawText = readFileText(CONFIG_PATH);
       current = deepMerge(DEFAULT_CONFIG, JSON.parse(rawText));
     } else {
-      save();
+      // 主文件不在，但临时文件在 = 上次死在 rename 之前，内容其实是新的
+      const tmp = CONFIG_PATH + '.tmp';
+      if (fs.existsSync(tmp)) {
+        current = deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp)));
+        try { fs.renameSync(tmp, CONFIG_PATH); } catch { /* noop */ }
+        console.log('[config] 主文件缺失，已从临时文件恢复设置');
+      } else {
+        save();
+      }
     }
   } catch (err) {
     console.warn('[config] 读取失败，使用默认配置:', err.message);
+    // 主文件坏了 → 看看临时文件能不能救回来，尽量别让用户重填全部设置
+    try {
+      const tmp = CONFIG_PATH + '.tmp';
+      if (fs.existsSync(tmp)) {
+        current = deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp)));
+        console.warn('[config] 已从临时文件恢复设置');
+        return current;
+      }
+    } catch { /* 临时文件也救不了 */ }
     current = deepMerge(DEFAULT_CONFIG, {});
   }
   return current;
@@ -96,8 +114,8 @@ function load() {
 function save(patch) {
   if (patch) current = deepMerge(current, patch);
   try {
-    // 写回时同样不带 BOM
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(current, null, 2), 'utf8');
+    // 写回时同样不带 BOM；原子写避免被强杀时写坏配置
+    writeFileAtomic(CONFIG_PATH, JSON.stringify(current, null, 2));
     console.log('[配置] 设置已保存');
   } catch (err) {
     console.warn('[config] 写入失败:', err.message);

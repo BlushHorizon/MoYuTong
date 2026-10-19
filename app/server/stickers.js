@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { writeFileAtomic, readJson } = require('./atomic');
 const http = require('http');
 const https = require('https');
 
@@ -52,9 +53,11 @@ class StickerLibrary {
   _load() {
     if (this._lib) return this._lib;
     try {
-      this._lib = JSON.parse(fs.readFileSync(this.file, 'utf8')) || {};
+      this._lib = readJson(this.file) || {};
     } catch {
-      this._lib = {};
+      // 主文件坏了 → 试试上次原子写留下的临时文件
+      try { this._lib = readJson(this.file + '.tmp') || {}; this.log('素材库主文件损坏，已从临时文件恢复'); }
+      catch { this._lib = {}; }
     }
     return this._lib;
   }
@@ -62,7 +65,8 @@ class StickerLibrary {
   _save() {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify(this._lib, null, 2), 'utf8');
+      // 原子写：被强杀时不会留下半截 JSON 把整个表情库清空
+      writeFileAtomic(this.file, JSON.stringify(this._lib, null, 2));
     } catch (e) {
       this.log('素材库写入失败: ' + e.message);
     }

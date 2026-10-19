@@ -5,6 +5,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { writeFileAtomic, readJson } = require('./atomic');
 
 const MAX_MESSAGES_PER_CHAT = 300;
 const MAX_CHATS = 200;
@@ -22,15 +23,40 @@ class Store {
   }
 
   load() {
+    const tmpFile = this.file + '.tmp';
     try {
-      if (!fs.existsSync(this.file)) return;
-      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      if (!fs.existsSync(this.file)) {
+        // 主文件不在，但临时文件在 = 上次恰好死在 rename 之前，内容其实是新的
+        if (fs.existsSync(tmpFile)) {
+          const rawT = readJson(tmpFile);
+          for (const c of rawT.chats || []) this.chats.set(c.id, c);
+          for (const [k, arr] of Object.entries(rawT.messages || {})) this.messages.set(k, arr);
+          console.log(`[store] 主文件缺失，已从临时文件恢复 ${this.chats.size} 个会话`);
+          try { fs.renameSync(tmpFile, this.file); } catch { /* noop */ }
+          return;
+        }
+        return;
+      }
+      let raw;
+      try {
+        raw = readJson(this.file);
+      } catch (err) {
+        // 主文件坏了（旧版本非原子写留下的半截 JSON）→ 试试临时文件还能不能救
+        if (fs.existsSync(tmpFile)) {
+          raw = readJson(tmpFile);
+          console.warn('[store] 主文件损坏，已从临时文件恢复');
+          try { fs.renameSync(tmpFile, this.file); } catch { /* noop */ }
+        } else {
+          throw err;
+        }
+      }
       for (const c of raw.chats || []) this.chats.set(c.id, c);
       for (const [k, arr] of Object.entries(raw.messages || {})) this.messages.set(k, arr);
       console.log(`[store] 已载入 ${this.chats.size} 个会话、${[...this.messages.values()].reduce((a, b) => a + b.length, 0)} 条消息`);
     } catch (err) {
       console.warn('[store] 载入失败:', err.message);
     }
+    try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch { /* noop */ }
   }
 
   scheduleSave() {
@@ -51,7 +77,7 @@ class Store {
         chats: [...this.chats.values()],
         messages: Object.fromEntries(this.messages)
       };
-      fs.writeFileSync(this.file, JSON.stringify(payload), 'utf8');
+      writeFileAtomic(this.file, JSON.stringify(payload));
       this._dirty = false;
     } catch (err) {
       console.warn('[store] 保存失败:', err.message);

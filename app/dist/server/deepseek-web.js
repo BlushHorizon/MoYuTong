@@ -394,6 +394,10 @@ class DeepSeekWeb {
     // 这里最多等 12 秒再放弃
     await this._waitForInput(12000);
 
+    // 先清空输入框：上一次操作失败留下的残字会让下面「填进去没有」和
+    // 「发出去有没有清空」两个判据同时失真（表现为偶发的“消息没能发出去”）
+    await this._clearInput();
+
     // 填入：先聚焦+全选，再 CDP 原生输入（React 受控组件下 Input.insertText 稳定生效，
     // 旧的 value setter 方案会被重渲染吃掉）
     const IN = JSON.stringify(this.site.input);
@@ -442,7 +446,12 @@ class DeepSeekWeb {
 
     // 发送（点按钮 → JS 合成回车 → CDP 原生回车），以输入框是否清空为成功判据
     if (!(await this._sendMessage())) {
-      throw new Error(`消息没能发出去：输入框内容没有被清空（${this.site.short} 页面可能弹了提示或要求登录）`);
+      // React 有时要等一两秒才把受控输入框清空，立刻判死会误报。
+      // 再等一会儿复查一次——只复查，不重发：重发会造成同一条消息发两遍。
+      await sleep(1500);
+      if (!(await this._inputCleared())) {
+        throw new Error(`消息没能发出去：输入框内容没有被清空（${this.site.short} 页面可能弹了提示或要求登录）`);
+      }
     }
 
     const deadline = Date.now() + timeoutMs;
@@ -476,14 +485,47 @@ class DeepSeekWeb {
     throw new Error(`等待 ${this.site.short} 回复超时`);
   }
 
-  /** 输入框是否已清空（= 消息已发出） */
+  /** 输入框是否已清空（= 消息已发出）；元素不在时返回 null（无法判断，多半是页面正在切换） */
   async _inputCleared() {
     const IN = JSON.stringify(this.site.input);
     const VAL = this.site.editable ? 'el.textContent' : 'el.value';
-    return this._evaluate(
-      `(() => { const el = document.querySelector(${IN}); if (!el) return false; const v = ${VAL}; return !v || !String(v).trim(); })()`,
+    const r = await this._evaluate(
+      `(() => { const el = document.querySelector(${IN}); if (!el) return null; const v = ${VAL}; return !v || !String(v).trim(); })()`,
       8000
-    ).catch(() => false);
+    ).catch(() => null);
+    if (r === null || r === undefined) return null;
+    return !!r;
+  }
+
+  /**
+   * 清空输入框。
+   * 上一次发送失败时，残留在输入框里的旧文字会让后续判断全部失准：
+   * 填新内容时可能变成「旧文字+新文字」，发送后又因为没清空而被判失败。
+   */
+  async _clearInput() {
+    const IN = JSON.stringify(this.site.input);
+    const focused = await this._evaluate(`(() => {
+      const el = document.querySelector(${IN});
+      if (!el) return false;
+      el.focus();
+      if (el.select) el.select();
+      else {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+      }
+      return true;
+    })()`, 8000).catch(() => false);
+    if (!focused) return false;
+    // 删掉选中内容：CDP 原生按键最稳（execCommand 在 React 受控组件上会被重渲染吃掉）
+    for (const type of ['keyDown', 'keyUp']) {
+      await this.cdp('Input.dispatchKeyEvent', {
+        type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46, nativeVirtualKeyCode: 46
+      }, 8000).catch(() => {});
+    }
+    return true;
   }
 
   /** 多策略发送：点发送按钮 → JS 合成回车 → CDP 原生回车 */
@@ -531,7 +573,8 @@ class DeepSeekWeb {
       }, 8000).catch(() => {});
     }
     await sleep(1000);
-    return await this._inputCleared();
+    const cleared = await this._inputCleared();
+    return cleared !== false;   // null = 输入框不在了（页面在切换），按已发出处理
   }
 
   async _answerSnapshot() {

@@ -4,14 +4,14 @@
     "port": 8787
   },
   "qq": {
-    "mode": "mock",
+    "mode": "onebot",
     "onebot": {
       "wsUrl": "ws://127.0.0.1:3001",
       "accessToken": ""
     }
   },
   "ai": {
-    "enabled": false,
+    "enabled": true,
     "provider": "deepseek-web",
     "cdpPort": 9222,
     "browserPath": "",

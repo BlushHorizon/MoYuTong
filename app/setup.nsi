@@ -81,7 +81,8 @@ Section "主程序" SecMain
   File /nonfatal "dist\launcher.ps1"
   File /nonfatal "dist\README.md"
   File /nonfatal "dist\config.json"
-  File /nonfatal "dist\setup.nsi"
+  ; 不再打包 dist\setup.nsi：那是打包脚本自己，用户拿到没用，
+  ; 而且旧副本里还留着 File /r "dist\*" 这种会连隐私一起打进去的写法，纯属误导
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; ---------- 还原用户数据（包内 data 只是全新安装的种子） ----------

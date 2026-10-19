@@ -305,7 +305,7 @@ function renderAt(t) {
         ctx.fillStyle = 'rgba(8, 14, 26, 0.96)'; rrect(cx, cy, 288, 96, 12); ctx.fill();
         ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(cx, cy, 288, 96, 12); ctx.stroke();
         txt('摸鱼瞳MoYuTong安装包.exe', cx + 20, cy + 36, { size: 16, weight: 600, color: TXT });
-        txt('2.4 MB · Windows', cx + 20, cy + 60, { size: 13, weight: 400, color: DIM });
+        txt('144 KB · Windows', cx + 20, cy + 60, { size: 13, weight: 400, color: DIM });
         ctx.fillStyle = BLUE; rrect(cx + 20, cy + 72, 228 * p, 5, 3); ctx.fill();
       }
       ctx.restore();
@@ -320,7 +320,7 @@ function renderAt(t) {
     const a = stepAlpha(t, 15, 23);
     stepShot(IMGS.overview, 'overview', 'cardQqMain', 'QQ 已连接', 200, t);
     ctx.save(); ctx.globalAlpha = a;
-    txt('双击桌面「摸鱼瞳-启动」', FRAME.x + 300, FRAME.y + 84, { size: 20, weight: 600, color: TXT });
+    txt('双击桌面「摸鱼瞳-开启」', FRAME.x + 300, FRAME.y + 84, { size: 20, weight: 600, color: TXT });
     txt('面板会自动打开 http://127.0.0.1:8787', FRAME.x + 300, FRAME.y + 116, { size: 15, weight: 400, color: DIM });
     ctx.restore();
     caption(2, '启动服务', '双击「开启.bat」或桌面快捷方式，浏览器自动打开监控台', a);

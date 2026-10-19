@@ -206,6 +206,8 @@ async function openSettings() {
   $('setMode').value = data.qq?.mode || 'mock';
   $('setWsUrl').value = data.qq?.onebot?.wsUrl || 'ws://127.0.0.1:3001';
   $('setToken').value = data.qq?.onebot?.accessToken || '';
+  // Token 只回后 4 位；留空保存 = 清除
+  $('setToken').placeholder = data.qq?.onebot?.hasToken ? '留空 = 清除（当前已配置）' : '与 SnowLuma 里填的一致，没有就留空';
 
   // 回复对象：会话多选下拉（来自概览列表）
   $('setReplyMode').value = ai.replyMode === 'target' ? 'target' : 'all';

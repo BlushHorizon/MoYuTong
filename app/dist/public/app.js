@@ -206,6 +206,8 @@ async function openSettings() {
   $('setMode').value = data.qq?.mode || 'mock';
   $('setWsUrl').value = data.qq?.onebot?.wsUrl || 'ws://127.0.0.1:3001';
   $('setToken').value = data.qq?.onebot?.accessToken || '';
+  // Token 只回后 4 位；留空保存 = 清除
+  $('setToken').placeholder = data.qq?.onebot?.hasToken ? '留空 = 清除（当前已配置）' : '与 SnowLuma 里填的一致，没有就留空';
 
   // 回复对象：会话多选下拉（来自概览列表）
   $('setReplyMode').value = ai.replyMode === 'target' ? 'target' : 'all';
@@ -259,7 +261,7 @@ async function refreshStickers() {
   const listEl = $('stickerList');
   try {
     const r = await api('/api/stickers');
-    statsEl.textContent = `素材：${r.count} 个（商城表情 ${r.mface} / 图片 ${r.image}）`;
+    statsEl.textContent = `素材：${r.count} 个（商城表情 ${r.mface} / 图片 ${r.image}）` + (r.items.length < r.count ? ` · 仅显示最近 ${r.items.length} 条` : '');
     listEl.innerHTML = r.items.length
       ? r.items.map((x) => `
         <div class="sticker-row">
@@ -394,9 +396,11 @@ async function saveSettings() {
       }
     }
   };
-  await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
+  const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
   $('settingsModal').classList.add('hidden');
   await refreshStatus();
+  /* QQ 接入参数变了 → 服务端已自动重建适配器重连，明确告知，免得以为改了没生效 */
+  if (resp && resp.qqReconnected) alert('设置已保存。\n\n正在按新地址重连 QQ：\n' + payload.qq.onebot.wsUrl + '\n\n看顶部 QQ 状态，等它变成「已连接」即可。');
 }
 
 /* ---------------- SSE ---------------- */
