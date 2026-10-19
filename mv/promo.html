@@ -2,340 +2,838 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<title>摸鱼瞳 MoYuTong · 宣传片</title>
+<title>摸鱼瞳 MoYuTong · 宣传片 v2</title>
 <style>
-  html, body { margin: 0; background: #04060c; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  html, body { margin: 0; background: #04060a; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { box-shadow: 0 0 90px rgba(80, 160, 255, .22); }
   #bar { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
-  button { background: #0e1626; color: #9fb6d0; border: 1px solid #24405e; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  button { background: #0e1626; color: #9fb6d0; border: 1px solid #24405e; border-radius: 8px; padding: 6px 14px; cursor: pointer; font: 13px "Microsoft YaHei", sans-serif; }
 </style>
 </head>
 <body>
 <canvas id="cv" width="1280" height="720"></canvas>
 <div id="bar">
-  <button onclick="play()">▶ 顺序播放（调试）</button>
-  <button onclick="window.__seek(20)">跳到 20s</button>
+  <button onclick="play()">▶ 播放（预览）</button>
+  <button onclick="window.__seek(8)">8s 登场</button>
+  <button onclick="window.__seek(16)">16s 表情包</button>
+  <button onclick="window.__seek(35.6)">35.6s 收尾</button>
 </div>
+<script src="shots/rects.js"></script>
 <script>
 'use strict';
-/* 摸鱼瞳 宣传片 —— 积极 / 欢快 / 有记忆点
-   真实界面截图 + 代码生成的活泼动效；节奏 60 秒 */
+/* =========================================================
+   摸鱼瞳 宣传片 v2 —— 40 秒 · 150 BPM · 节拍硬切
+   真实界面截图（已脱敏）+ 代码生成动效；无剪辑软件、无素材库
+   ========================================================= */
 const W = 1280, H = 720;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 
 const C = {
-  blue: '#3b8cff', blue2: '#7ec0ff', cyan: '#4fe3ff', yellow: '#ffd166',
-  pink: '#ff7ab8', green: '#5ee6a8', ink: '#04060c', deep: '#081223',
-  white: '#ffffff', dim: '#8fa6c4'
+  ink: '#04060a', deep: '#081120', panel: '#0d1524',
+  blue: '#4d8dff', blue2: '#7ec0ff', cyan: '#4fe3ff',
+  amber: '#ffb454', pink: '#ff7ab8', mint: '#46e0a8',
+  red: '#ff5a5f', white: '#ffffff', dim: '#93a5bd', faint: '#5e6d84',
 };
 const FONT = '"Microsoft YaHei", "PingFang SC", system-ui, sans-serif';
 const MONO = 'Consolas, "Cascadia Mono", monospace';
 
+const BEAT = 0.4, BAR = 1.6, DUR = 40;
+const T_HERO = 8.0, T_PANEL = 9.6, T_STK = 16.0, T_RULES = 22.4, T_PERK = 28.8, T_CTA = 35.2;
+const IMPACTS = [T_HERO, T_STK, T_RULES, T_PERK, T_CTA];
+
+/* ---------------- 资源 ---------------- */
 const LOGO = new Image(); LOGO.src = '../site/assets/moyutong-avatar-640.png';
-const STK = ['../site/assets/stk1.jpg', '../site/assets/stk2.jpg', '../site/assets/stk3.png', '../site/assets/stk4.jpg', '../site/assets/stk6.jpg']
-  .map((s) => { const i = new Image(); i.src = s; return i; });
-const SHOTS = {
+const STK_SRC = ['stk1.jpg', 'stk2.jpg', 'stk3.png', 'stk4.jpg', 'stk6.jpg'];
+const STK = STK_SRC.map((s) => { const i = new Image(); i.src = '../site/assets/' + s; return i; });
+const SHOT_SRC = {
   overview: 'shots/01-overview.png',
   feed: 'shots/02-feed.png',
   reply: 'shots/04-settings-reply.png',
-  stickers: 'shots/07-stickers.png'
+  quiet: 'shots/05-settings-quiet.png',
+  stickers: 'shots/07-stickers.png',
 };
-const IMGS = {};
+const SHOTS = {};
 const ready = Promise.all([
-  ...Object.values(SHOTS).map((src) => { const i = new Image(); i.src = src; IMGS[Object.keys(SHOTS).find((k) => SHOTS[k] === src)] = i; return i.decode ? i.decode().catch(() => {}) : null; }),
-  LOGO.decode ? LOGO.decode().catch(() => {}) : null,
-  ...STK.map((i) => i.decode ? i.decode().catch(() => {}) : null)
+  ...[LOGO, ...STK].map((i) => (i.decode ? i.decode().catch(() => { }) : null)),
+  ...Object.entries(SHOT_SRC).map(([k, src]) => {
+    const i = new Image(); i.src = src; SHOTS[k] = i;
+    return i.decode ? i.decode().catch(() => { }) : null;
+  }),
 ]);
 
-const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const ease = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+/* ---------------- 小工具 ---------------- */
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const seg = (t, a, b) => clamp01((t - a) / (b - a));
-const pop = (t, a, b) => { const p = clamp01((t - a) / (b - a)); return 1 - Math.pow(1 - p, 3) * Math.cos(p * 8); };
-const bounce = (x) => Math.sin(x * 3.2) * Math.exp(-x * 0.9);
+const easeOut = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+const easeIn = (x) => Math.pow(clamp01(x), 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const backOut = (x) => { const c1 = 1.9, c3 = c1 + 1, p = clamp01(x) - 1; return 1 + c3 * p * p * p + c1 * p * p; };
+const pulse = (t, at, dur = 0.42, amp = 1) => { const x = (t - at) / dur; return x < 0 || x > 1 ? 0 : (1 - x) * (1 - x) * amp; };
+const lerp = (a, b, k) => a + (b - a) * k;
+const lerpView = (a, b, k) => ({
+  x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), w: lerp(a.w, b.w, k), h: lerp(a.h, b.h, k),
+});
 
 function txt(s, x, y, o = {}) {
-  const { size = 24, weight = 700, color = C.white, align = 'left', font = FONT, alpha = 1, stroke = false } = o;
-  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = color;
-  ctx.font = `${weight} ${size}px ${font}`; ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
-  if (stroke) { ctx.lineWidth = size / 7; ctx.strokeStyle = 'rgba(4,6,12,.85)'; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); }
-  ctx.fillText(s, x, y); ctx.restore();
+  const { size = 24, weight = 700, color = C.white, align = 'left', font = FONT, alpha = 1, stroke = 0, baseline = 'alphabetic', shadow = 0, ls = 0 } = o;
+  if (alpha <= 0.004) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.textAlign = align; ctx.textBaseline = baseline;
+  if (ls) {
+    // 手动字距
+    const chars = [...s];
+    let total = 0;
+    for (const ch of chars) total += ctx.measureText(ch).width + ls;
+    total -= ls;
+    let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+    if (shadow) { ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = shadow; ctx.shadowOffsetY = shadow / 4; }
+    ctx.fillStyle = color;
+    for (const ch of chars) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + ls; }
+    ctx.restore();
+    return;
+  }
+  if (stroke) {
+    ctx.lineWidth = size / 6.5; ctx.strokeStyle = 'rgba(4,6,10,.9)';
+    ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+    ctx.strokeText(s, x, y);
+  }
+  ctx.fillStyle = color;
+  if (shadow) { ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = shadow; ctx.shadowOffsetY = shadow / 4; }
+  ctx.fillText(s, x, y);
+  ctx.restore();
 }
 function rrect(x, y, w, h, r) {
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
-  const rr = Math.min(r, w / 2, h / 2);
   ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr); ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr); ctx.arcTo(x, y, x + w, y, rr);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
 }
-
-/* 背景：明快渐变 + 弹跳光斑 + 斜向光带 */
-let SPARKS = [];
-for (let i = 0; i < 26; i++) {
-  SPARKS.push({
-    x: Math.random() * W, y: Math.random() * H, r: 2 + Math.random() * 5,
-    v: 20 + Math.random() * 60, ph: Math.random() * 7,
-    c: [C.blue2, C.cyan, C.yellow, C.pink, C.green][Math.floor(Math.random() * 5)]
-  });
-}
-function bg(t, bright = 1) {
-  const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
-  g.addColorStop(0, '#0a1830'); g.addColorStop(0.55, '#071120'); g.addColorStop(1, '#050a14');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  // 大光斑
-  for (let i = 0; i < 3; i++) {
-    const cx = W * (0.22 + i * 0.3) + Math.sin(t * 0.5 + i) * 90;
-    const cy = H * (0.3 + (i % 2) * 0.42) + Math.cos(t * 0.42 + i * 1.7) * 70;
-    const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 420);
-    rg.addColorStop(0, [C.blue, C.cyan, C.pink][i] + '22');
-    rg.addColorStop(1, 'transparent');
-    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+/* 带描边的冲击大字（RGB 分离） */
+function slam(s, x, y, o = {}) {
+  const { size = 64, color = C.white, at = 0, t = 0, align = 'center', weight = 900, split = true, stroke = true, dur = 0.34 } = o;
+  const p = clamp01((t - at) / dur);
+  if (p <= 0) return;
+  const sc = 1.14 + 0.32 * (1 - backOut(p));
+  const a = easeOut(p * 1.6);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(sc, sc);
+  if (split) {
+    const off = 5 * (1 - p);
+    if (off > 0.2) {
+      txt(s, -off, 0, { size, weight, color: 'rgba(255,90,95,.65)', align, stroke: 0 });
+      txt(s, off, 0, { size, weight, color: 'rgba(79,227,255,.65)', align, stroke: 0 });
+    }
   }
+  txt(s, 0, 0, { size, weight, color, align, alpha: a, stroke: stroke ? 1 : 0 });
+  ctx.restore();
+}
+
+/* 屏幕震动：叠加所有冲击 + 节拍小震 */
+function shakeXY(t) {
+  let dx = 0, dy = 0;
+  const add2 = (at, amp, dur, fr) => {
+    const x = t - at;
+    if (x < 0 || x > dur) return;
+    const k = Math.exp(-x * (11 / dur * 0.35)) * amp;
+    dx += Math.sin(x * fr) * k;
+    dy += Math.cos(x * fr * 0.81) * k * 0.66;
+  };
+  for (const at of IMPACTS) add2(at, at === T_HERO ? 26 : 18, 0.5, 46);
+  for (let i = 0; i < 6; i++) add2(16.4 + i * 0.4, 11, 0.3, 52);
+  for (let i = 0; i < 6; i++) add2(29.2 + i * 0.4, 9, 0.26, 50);
+  for (let i = 0; i < 6; i++) add2(3.2 + i * 0.4, 7, 0.22, 44);
+  return [dx, dy];
+}
+function flashAmt(t) {
+  let a = 0;
+  const decay = (at, dur, amp) => {
+    const x = (t - at) / dur;
+    return x >= 0 && x <= 1 ? (1 - x) * amp : 0;
+  };
+  for (const at of IMPACTS) a = Math.max(a, decay(at, 0.13, at === T_HERO ? 0.85 : 0.6));
+  a = Math.max(a, decay(7.9, 0.09, 0.5));
+  return a;
+}
+
+/* ---------------- 背景 ---------------- */
+const grain = (() => {
+  const c = document.createElement('canvas'); c.width = 120; c.height = 120;
+  const g = c.getContext('2d');
+  const d = g.createImageData(120, 120);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const v = 120 + Math.random() * 135;
+    d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+})();
+let grainFlip = 0;
+
+function bg(t) {
+  const g = ctx.createLinearGradient(0, -20, W * 0.45, H + 20);
+  g.addColorStop(0, '#0a1730'); g.addColorStop(0.5, '#071021'); g.addColorStop(1, '#04070d');
+  ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, H + 60);
+
+  // 呼吸光斑（跟拍）
+  for (let i = 0; i < 3; i++) {
+    const cx = W * (0.2 + i * 0.32) + Math.sin(t * 0.7 + i * 2) * 120;
+    const cy = H * (0.28 + (i % 2) * 0.44) + Math.cos(t * 0.55 + i * 1.6) * 90;
+    const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 460);
+    const col = [C.blue, C.cyan, C.pink][i];
+    rg.addColorStop(0, col + '1f');
+    rg.addColorStop(1, 'transparent');
+    ctx.fillStyle = rg; ctx.fillRect(-30, -30, W + 60, H + 60);
+  }
+
+  // 网格 + 节拍脉冲
+  const bp = 1 - ((t % BEAT) / BEAT);
+  ctx.save();
+  ctx.globalAlpha = 0.05 + 0.16 * bp * bp;
+  ctx.strokeStyle = C.blue2; ctx.lineWidth = 1;
+  const gs = 64, off = (t * 22) % gs;
+  ctx.beginPath();
+  for (let x = -gs + off; x < W + gs; x += gs) { ctx.moveTo(x, -30); ctx.lineTo(x, H + 30); }
+  for (let y = -gs + off * 0.5; y < H + gs; y += gs) { ctx.moveTo(-30, y); ctx.lineTo(W + 30, y); }
+  ctx.stroke();
+  ctx.restore();
+
+  // 斜向光带
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  for (let i = 0; i < 7; i++) {
+    const x = ((t * 150 + i * 220) % (W + 500)) - 260;
+    ctx.fillStyle = i % 2 ? C.cyan : C.blue;
+    ctx.beginPath();
+    ctx.moveTo(x, -30); ctx.lineTo(x + 90, -30); ctx.lineTo(x - 200, H + 30); ctx.lineTo(x - 290, H + 30);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
   // 上升粒子
   ctx.save();
-  for (const s of SPARKS) {
-    const y = ((s.y - t * s.v) % (H + 80) + H + 80) % (H + 80) - 40;
-    const a = (0.35 + 0.35 * Math.sin(t * 2 + s.ph)) * bright;
-    ctx.globalAlpha = a;
-    ctx.fillStyle = s.c;
-    ctx.beginPath(); ctx.arc(s.x + Math.sin(t * 1.3 + s.ph) * 16, y, s.r, 0, 7); ctx.fill();
+  for (let i = 0; i < 40; i++) {
+    const sp = 40 + (i % 7) * 30;
+    const y = H + 40 - ((t * sp + i * 97) % (H + 120));
+    const x = (i * 173) % W + Math.sin(t * 1.4 + i) * 24;
+    ctx.globalAlpha = 0.12 + 0.25 * Math.abs(Math.sin(t * 2 + i * 1.3));
+    ctx.fillStyle = [C.blue2, C.cyan, C.mint, C.amber][i % 4];
+    ctx.beginPath(); ctx.arc(x, y, 1.4 + (i % 3) * 0.9, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+
+  // 暗角
+  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, H * 0.92);
+  vg.addColorStop(0, 'transparent'); vg.addColorStop(1, 'rgba(2,4,8,.86)');
+  ctx.fillStyle = vg; ctx.fillRect(-30, -30, W + 60, H + 60);
+
+  // 颗粒
+  grainFlip = (grainFlip + 1) % 4;
+  ctx.save();
+  ctx.globalAlpha = 0.045;
+  ctx.drawImage(grain, -((t * 900) % 120) - 120, -((t * 700) % 120) - 120, W + 360, H + 360);
+  ctx.restore();
+}
+
+/* ---------------- 组件 ---------------- */
+let ZOOM = 1;
+function cam(z) { ZOOM = z; ctx.translate(W / 2, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2); }
+
+function chip(text, x, y, color, t, at, o = {}) {
+  const p = clamp01((t - at) / 0.3);
+  if (p <= 0) return;
+  const sc = 0.86 + 0.14 * backOut(p);
+  const w = o.w || (ctx.measureText(text).width + 44);
+  ctx.save();
+  ctx.globalAlpha = easeOut(p);
+  ctx.translate(x, y); ctx.scale(sc, sc);
+  rrect(-w / 2, -21, w, 42, 21);
+  ctx.fillStyle = 'rgba(10,18,32,.92)'; ctx.fill();
+  ctx.strokeStyle = color + 'aa'; ctx.lineWidth = 2; ctx.stroke();
+  txt(text, 0, 8, { size: o.size || 19, weight: 800, color: o.color || C.white, align: 'center' });
+  ctx.restore();
+}
+
+/* 窗口卡片：真实界面截图 + 浏览器 chrome */
+function winCard(im, x, y, w, h, t, at, o = {}) {
+  const { panX = 0, panY = 0, zoom = 1, url = '127.0.0.1:8787 · 摸鱼瞳监控台', accent = C.blue2, dur = 0.5, view = null } = o;
+  const p = clamp01((t - at) / dur);
+  if (p <= 0) return null;
+  const sc = 0.94 + 0.06 * backOut(p);
+  const CHROME = 34;
+  ctx.save();
+  ctx.globalAlpha = easeOut(Math.min(1, p * 1.4));
+  ctx.translate(x + w / 2, y + h / 2); ctx.scale(sc, sc); ctx.translate(-(x + w / 2), -(y + h / 2));
+  ctx.shadowColor = 'rgba(0,0,0,.82)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 24;
+  rrect(x, y, w, h, 14);
+  ctx.fillStyle = '#0b1220'; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = accent + '66'; ctx.lineWidth = 1.6; rrect(x, y, w, h, 14); ctx.stroke();
+
+  // chrome
+  ctx.save();
+  rrect(x, y, w, h, 14); ctx.clip();
+  const cg = ctx.createLinearGradient(x, y, x, y + CHROME);
+  cg.addColorStop(0, '#16203a'); cg.addColorStop(1, '#101827');
+  ctx.fillStyle = cg; ctx.fillRect(x, y, w, CHROME);
+  ctx.beginPath(); ctx.moveTo(x, y + CHROME + .5); ctx.lineTo(x + w, y + CHROME + .5);
+  ctx.strokeStyle = 'rgba(126,192,255,.22)'; ctx.lineWidth = 1; ctx.stroke();
+  ['#ff5f57', '#ffbd2e', '#28c840'].forEach((c, i) => {
+    ctx.beginPath(); ctx.arc(x + 16 + i * 15, y + 17, 5, 0, 7); ctx.fillStyle = c; ctx.fill();
+  });
+  rrect(x + 64, y + 8, w - 84, 18, 9);
+  ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
+  txt(url, x + 64 + (w - 84) / 2, y + 21, { size: 10.5, weight: 600, color: '#8fa6c4', align: 'center', font: MONO });
+
+  // 截图内容（view = {x,y,w,h}，CSS 像素；用于镜头推拉）
+  const cy0 = y + CHROME, ch = h - CHROME;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, cy0, w, ch); ctx.clip();
+  let rect = null;
+  if (im && im.naturalWidth) {
+    const k = im.naturalWidth / (im.__vw || 1440);       // 图内像素 / CSS 像素
+    const vx = view ? view.x : 0, vy = view ? view.y : 0;
+    const vw2 = view ? view.w : im.naturalWidth / k, vh2 = view ? view.h : im.naturalHeight / k;
+    const sc = Math.max(w / vw2, ch / vh2) * zoom;       // canvas 像素 / CSS 像素
+    const dw = vw2 * sc, dh = vh2 * sc;
+    const dx = x + (w - dw) / 2 + panX, dy = cy0 + (ch - dh) / 2 + panY;
+    ctx.drawImage(im, vx * k, vy * k, vw2 * k, vh2 * k, dx, dy, dw, dh);
+    rect = (r) => (r ? {
+      x: dx + (r.x - vx) * sc, y: dy + (r.y - vy) * sc,
+      w: r.w * sc, h: r.h * sc,
+    } : null);
+  }
+  ctx.restore();
+  ctx.restore();
+  ctx.restore();
+  return { p, rect, chromeTop: y + CHROME };
+}
+
+/* 高亮框（跟随截图坐标） */
+function highlight(r, color, t, at, label, labelAlign = 'right') {
+  if (!r) return;
+  const p = clamp01((t - at) / 0.3);
+  if (p <= 0) return;
+  const k = 1 + 0.06 * (1 - backOut(p));
+  ctx.save();
+  ctx.globalAlpha = easeOut(p);
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy);
+  ctx.strokeStyle = color; ctx.lineWidth = 3;
+  rrect(r.x, r.y, r.w, r.h, 10); ctx.stroke();
+  ctx.strokeStyle = color + '55'; ctx.lineWidth = 9;
+  rrect(r.x, r.y, r.w, r.h, 10); ctx.stroke();
+  if (label && r.w > 110) {
+    ctx.font = `800 16px ${FONT}`;
+    const tw = ctx.measureText(label).width + 32;
+    const ly = r.y - 30;
+    rrect(r.x + 2, ly, tw, 27, 13.5);
+    ctx.fillStyle = color; ctx.fill();
+    txt(label, r.x + 2 + tw / 2, ly + 19, { size: 16, weight: 800, color: '#04060a', align: 'center' });
   }
   ctx.restore();
 }
 
-/* 弹跳入场的大标题 */
-function bigTitle(t, a, b, lines) {
-  const p = clamp01((t - a) / 0.7);
-  lines.forEach((ln, i) => {
-    const q = clamp01((t - a - i * 0.14) / 0.55);
-    if (q <= 0) return;
-    const y = ln.y + (1 - ease(q)) * 46;
-    txt(ln.text, ln.x, y, { size: ln.size, weight: ln.weight || 800, color: ln.color || C.white, align: ln.align || 'center', alpha: ease(q) });
-  });
-  void b; void p;
-}
-
-/* 贴纸飞入 */
-function stickerFly(im, t, delay, from, to, spin) {
-  const p = clamp01((t - delay) / 0.9);
-  if (p <= 0 || !im.naturalWidth) return;
-  const e = ease(p);
+/* 飞入的贴纸 */
+function sticker(im, t, at, from, to, rot0, size, alphaMul = 1) {
+  const p = clamp01((t - at) / 0.42);
+  if (p <= 0 || !im.naturalWidth || alphaMul <= 0.01) return;
+  const e = backOut(p);
   const x = from[0] + (to[0] - from[0]) * e;
-  const y = from[1] + (to[1] - from[1]) * e + bounce(p) * 26;
-  const rot = (spin || 0) * (1 - e);
-  const s = 150 * (0.6 + 0.4 * ease(p));
+  const y = from[1] + (to[1] - from[1]) * e;
+  const rot = rot0 * (1 - easeOut(p));
+  const s = size * (0.55 + 0.45 * e);
   ctx.save();
-  ctx.globalAlpha = clamp01(p * 2);
+  ctx.globalAlpha = clamp01(p * 2.2) * alphaMul;
   ctx.translate(x, y); ctx.rotate(rot);
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 10;
+  ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 12;
+  rrect(-s / 2, -s / 2, s, s, s * 0.12); ctx.save(); ctx.clip();
   ctx.drawImage(im, -s / 2, -s / 2, s, s);
   ctx.restore();
-}
-
-/* 卡片弹入 */
-function card(t, delay, x, y, w, h, color) {
-  const p = clamp01((t - delay) / 0.5);
-  if (p <= 0) return;
-  const s = 0.8 + 0.2 * ease(p);
-  ctx.save();
-  ctx.translate(x + w / 2, y + h / 2); ctx.scale(s, s); ctx.translate(-(x + w / 2), -(y + h / 2));
-  ctx.globalAlpha = ease(p);
-  ctx.fillStyle = 'rgba(12,22,42,.92)';
-  rrect(x, y, w, h, 14); ctx.fill();
-  ctx.strokeStyle = color || 'rgba(126,192,255,.5)'; ctx.lineWidth = 2;
-  rrect(x, y, w, h, 14); ctx.stroke();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.22)';
+  rrect(-s / 2, -s / 2, s, s, s * 0.12); ctx.stroke();
   ctx.restore();
 }
 
+/* 聊天气泡 */
+function bubble(text, x, y, t, at, o = {}) {
+  const p = clamp01((t - at) / 0.26);
+  if (p <= 0) return;
+  const { size = 22, color = '#e8f0fb', bgc = 'rgba(255,255,255,.09)', border = 'rgba(255,255,255,.14)', align = 'left', w = 0 } = o;
+  ctx.save();
+  ctx.font = `700 ${size}px ${FONT}`;
+  const bw = w || ctx.measureText(text).width + 40;
+  const bh = size + 26;
+  const e = backOut(p);
+  ctx.globalAlpha = easeOut(p * 1.5);
+  ctx.translate(x, y);
+  ctx.scale(0.8 + 0.2 * e, 0.8 + 0.2 * e);
+  ctx.rotate((1 - e) * (align === 'left' ? -0.06 : 0.06));
+  rrect(align === 'left' ? 0 : -bw, -bh / 2, bw, bh, 12);
+  ctx.fillStyle = bgc; ctx.fill();
+  ctx.strokeStyle = border; ctx.lineWidth = 1.5; ctx.stroke();
+  txt(text, align === 'left' ? 20 : -20, size * 0.36, { size, weight: 700, color, align });
+  ctx.restore();
+}
+
+/* 扩散冲击环 */
+function ring(t, at, color, maxR = 520, dur = 0.7, lw = 6) {
+  const p = clamp01((t - at) / dur);
+  if (p <= 0 || p >= 1) return;
+  ctx.save();
+  ctx.globalAlpha = (1 - p) * 0.75;
+  ctx.strokeStyle = color; ctx.lineWidth = lw * (1 - p) + 1;
+  ctx.beginPath(); ctx.arc(W / 2, H / 2 - 40, 40 + maxR * easeOut(p), 0, 7); ctx.stroke();
+  ctx.restore();
+}
+
+/* 上升条纹（build） */
+function buildBars(t, a, b, color) {
+  const p = clamp01((t - a) / (b - a));
+  if (p <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = 0.5 * p;
+  const n = 34;
+  for (let i = 0; i < n; i++) {
+    const x = (i + 0.5) * (W / n);
+    const h = (H * 0.55) * (0.2 + 0.8 * Math.abs(Math.sin(i * 1.7 + t * 12))) * p;
+    ctx.fillStyle = i % 2 ? color : C.blue;
+    ctx.fillRect(x - 6, H, 12, -h * 0.5);
+  }
+  ctx.restore();
+}
+
+/* =========================================================
+   时间线
+   ========================================================= */
 function renderAt(t) {
-  t = Math.max(0, Math.min(60, t));
+  t = Math.max(0, Math.min(DUR, t));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const [sx, sy] = shakeXY(t);
+  ctx.save();
+  ctx.translate(sx, sy);
   bg(t);
 
-  /* ============ 0-5s 开场 Hook ============ */
-  if (t < 5) {
-    const p = ease(seg(t, 0.2, 1.2));
-    if (LOGO.naturalWidth) {
-      const s = 190 * (0.7 + 0.3 * ease(seg(t, 0.2, 1.6)));
+  /* ---------- A. 0.0-3.2 开场：消息轰炸 ---------- */
+  if (t < 3.4) {
+    const MSGS = [
+      ['在吗', 90, 90, 0.04], ['有人吗', 430, 60, 0.13], ['回一下', 760, 110, 0.22],
+      ['求助', 1030, 66, 0.31], ['？', 150, 210, 0.40], ['急', 520, 190, 0.49],
+      ['没人管吗', 890, 205, 0.58], ['在吗在吗', 200, 330, 0.67], ['回个话', 700, 320, 0.76],
+      ['有人吗', 1010, 350, 0.85], ['?', 330, 450, 0.94], ['急急急', 620, 440, 1.03],
+      ['在吗', 930, 470, 1.12], ['大佬救命', 120, 500, 1.21],
+    ];
+    for (const [m, x, y, at] of MSGS) {
+      bubble(m, x, y, t, at, { size: 23, color: '#dce8f8', bgc: 'rgba(20,34,58,.9)', border: 'rgba(140,200,255,.3)' });
+    }
+    // 99+ 徽标
+    if (t > 1.5) {
+      const p = clamp01((t - 1.5) / 0.22);
+      const sc = 0.6 + 0.4 * backOut(p);
       ctx.save();
-      ctx.translate(W / 2, 220); ctx.rotate(bounce(clamp01((t - 0.6)) * 0.5) * 0.3);
-      ctx.shadowColor = 'rgba(80,160,255,.55)'; ctx.shadowBlur = 40;
+      ctx.globalAlpha = easeOut(p);
+      ctx.translate(1152, 620); ctx.scale(sc, sc);
+      ctx.beginPath(); ctx.arc(0, 0, 42, 0, 7);
+      ctx.fillStyle = C.red; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3.5; ctx.stroke();
+      txt('99+', 0, 11, { size: 27, weight: 900, color: '#fff', align: 'center' });
+      ctx.restore();
+      txt('未读消息', 1152, 686, { size: 16, weight: 800, color: C.red, align: 'center', alpha: p });
+    }
+    // 三句冲击
+    const dim = easeOut(seg(t, 1.6, 2.0));
+    ctx.save();
+    ctx.globalAlpha = dim * 0.87;
+    ctx.fillStyle = '#04060a';
+    ctx.fillRect(-30, -30, W + 60, H + 60);
+    ctx.restore();
+    slam('回不完。', W / 2, 264, { t, at: 2.0, size: 74, color: C.white });
+    slam('水群太累。', W / 2, 396, { t, at: 2.4, size: 74, color: C.pink });
+    slam('手都酸了。', W / 2, 528, { t, at: 2.8, size: 74, color: C.amber });
+    return finish(t);
+  }
+
+  /* ---------- B. 3.2-8.0 痛点快剪 → build ---------- */
+  if (t < T_HERO) {
+    const cards = [
+      ['在吗', C.blue2, 3.2], ['有人吗', C.cyan, 3.6], ['回一下', C.amber, 4.0],
+      ['求助', C.pink, 4.4], ['急', C.red, 4.8], ['？', C.mint, 5.2],
+    ];
+    const cardOut = 1 - easeOut(seg(t, 5.28, 5.56));
+    for (const [m, col, at] of cards) {
+      const p = clamp01((t - at) / 0.24);
+      if (p <= 0 || cardOut <= 0.01) continue;
+      const i = cards.findIndex((c) => c[2] === at);
+      const col2 = i % 3, row = Math.floor(i / 3);
+      const x = 150 + col2 * 340, y = 150 + row * 150;
+      const sc = (0.7 + 0.3 * backOut(p) + pulse(t, at, 0.3, 0.1)) * (0.86 + 0.14 * cardOut);
+      const rot = (i % 2 ? 1 : -1) * (1 - easeOut(p)) * 0.14;
+      ctx.save();
+      ctx.globalAlpha = easeOut(p) * cardOut;
+      ctx.translate(x + 150, y + 60); ctx.scale(sc, sc); ctx.rotate(rot); ctx.translate(-(x + 150), -(y + 60));
+      rrect(x, y, 300, 120, 14);
+      ctx.fillStyle = 'rgba(11,19,33,.92)'; ctx.fill();
+      ctx.strokeStyle = col + 'cc'; ctx.lineWidth = 2.5; ctx.stroke();
+      txt(m, x + 150, y + 74, { size: 34, weight: 900, color: col, align: 'center' });
+      ctx.restore();
+    }
+    // 结论
+    slam('这些问题', W / 2, 316, { t, at: 5.6, size: 58, color: C.dim, dur: 0.3 });
+    slam('摸鱼瞳一个人全包了', W / 2, 412, { t, at: 6.0, size: 72, color: C.white, dur: 0.34 });
+
+    buildBars(t, 6.2, 8.0, C.cyan);
+    if (t > 6.4) {
+      const p = clamp01((t - 6.4) / 1.5);
+      ctx.save();
+      ctx.globalAlpha = p * 0.75;
+      const vg = ctx.createRadialGradient(W / 2, H / 2, H * (0.7 - 0.55 * p), W / 2, H / 2, H * 0.95);
+      vg.addColorStop(0, 'transparent'); vg.addColorStop(1, 'rgba(0,0,0,.95)');
+      ctx.fillStyle = vg; ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.restore();
+      txt('准备好了吗', W / 2, 566, { size: 28 + 38 * p, weight: 900, color: '#fff', align: 'center', alpha: p, stroke: 1 });
+    }
+    return finish(t);
+  }
+
+  /* ---------- C. 8.0-9.6 登场 ---------- */
+  if (t < T_PANEL) {
+    const camz = 1 + 0.05 * Math.max(0, 1 - (t - T_HERO) / 0.5);
+    ctx.save(); cam(camz);
+    ring(t, T_HERO, C.blue2, 620, 0.75, 7);
+    ring(t, T_HERO + 0.06, C.white, 420, 0.6, 4);
+    // logo
+    const lp = clamp01((t - T_HERO) / 0.42);
+    if (lp > 0) {
+      const gp = easeOut(lp);
+      const gg = ctx.createRadialGradient(W / 2, 196, 10, W / 2, 196, 210);
+      gg.addColorStop(0, `rgba(80,160,255,${0.34 * gp})`);
+      gg.addColorStop(0.45, `rgba(80,160,255,${0.14 * gp})`);
+      gg.addColorStop(1, 'transparent');
+      ctx.fillStyle = gg; ctx.fillRect(W / 2 - 240, -20, 480, 440);
+    }
+    if (LOGO.naturalWidth && lp > 0) {
+      const e = backOut(lp);
+      const s = 196 * (2.5 - 1.5 * e);
+      const rr = s * 0.21;
+      ctx.save();
+      ctx.globalAlpha = clamp01(lp * 3);
+      ctx.translate(W / 2, 200); ctx.rotate((1 - e) * -0.5);
+      ctx.shadowColor = 'rgba(80,160,255,.8)'; ctx.shadowBlur = 52;
+      rrect(-s / 2, -s / 2, s, s, rr); ctx.fillStyle = '#070c16'; ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.save(); rrect(-s / 2, -s / 2, s, s, rr); ctx.clip();
       ctx.drawImage(LOGO, -s / 2, -s / 2, s, s);
       ctx.restore();
-    }
-    txt('群消息没人回？水群太累？', W / 2, 400, { size: 30, weight: 600, color: C.dim, align: 'center', alpha: p });
-    txt('摸鱼瞳 MOYUTONG', W / 2, 486, { size: 74, weight: 800, color: C.white, align: 'center', alpha: p, stroke: true });
-    txt('你 QQ 背后的 AI 搭子', W / 2, 540, { size: 30, weight: 700, color: C.yellow, align: 'center', alpha: ease(seg(t, 1.0, 2.0)) });
-    txt('本地跑 · 0 花费 · 会自己发表情包', W / 2, 600, { size: 19, weight: 500, color: C.blue2, align: 'center', alpha: ease(seg(t, 1.6, 2.6)) });
-    return;
-  }
-
-  /* ============ 5-13s 痛点共鸣 ============ */
-  if (t < 13) {
-    const a = ease(seg(t, 5, 6)) * (1 - ease(seg(t, 12.2, 13)));
-    ctx.save(); ctx.globalAlpha = a;
-    bigTitle(t, 5.2, 13, [{ text: '群里 @ 全体 都没人应声…', y: 150, size: 40, color: C.white }]);
-    bigTitle(t, 7.4, 13, [{ text: '水群刷屏，回不过来', y: 150, size: 40, color: C.pink }]);
-    bigTitle(t, 9.6, 13, [{ text: '一条条回，手都酸了', y: 150, size: 40, color: C.yellow }]);
-    // 聊天气泡群
-    const msgs = [
-      ['在吗', '有人吗', '求助', '？', '回一下', '急'],
-      [0, 1, 2, 3, 4, 5]
-    ];
-    msgs[0].forEach((m, i) => {
-      const d = 5.6 + i * 0.55;
-      card(t, d, 120 + (i % 3) * 300, 240 + Math.floor(i / 3) * 120, 250, 84, 'rgba(143,166,196,.35)');
-      txt(m, 245 + (i % 3) * 300, 292 + Math.floor(i / 3) * 120, { size: 24, weight: 600, color: C.dim, align: 'center' });
-    });
-    txt('这些问题，摸鱼瞳一个人全包了 ↓', W / 2, 560, { size: 26, weight: 700, color: C.cyan, align: 'center' });
-    ctx.restore();
-    return;
-  }
-
-  /* ============ 13-22s 登场：面板接管 ============ */
-  if (t < 22) {
-    const a = ease(seg(t, 13, 13.8)) * (1 - ease(seg(t, 21.2, 22)));
-    ctx.save(); ctx.globalAlpha = a;
-    bigTitle(t, 13.2, 22, [{ text: '摸鱼瞳上岗', y: 132, size: 46, color: C.yellow }]);
-    const bx = 210, by = 190, bw = 860, bh = 400;
-    const p = ease(seg(t, 13.6, 14.6));
-    ctx.save();
-    ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(0.9 + 0.1 * p, 0.9 + 0.1 * p); ctx.translate(-(bx + bw / 2), -(by + bh / 2));
-    ctx.shadowColor = 'rgba(59,140,255,.35)'; ctx.shadowBlur = 40;
-    rrect(bx, by, bw, bh, 16); ctx.clip();
-    if (IMGS.overview?.naturalWidth) {
-      const s = Math.max(bw / IMGS.overview.naturalWidth, bh / IMGS.overview.naturalHeight);
-      ctx.drawImage(IMGS.overview, bx + (bw - IMGS.overview.naturalWidth * s) / 2, by, IMGS.overview.naturalWidth * s, IMGS.overview.naturalHeight * s);
-    }
-    ctx.restore();
-    rrect(bx, by, bw, bh, 16); ctx.strokeStyle = 'rgba(126,192,255,.45)'; ctx.lineWidth = 2; ctx.stroke();
-    txt('面板里：已连接 · 运行中 · 就绪', bx, by + bh + 40, { size: 20, weight: 600, color: C.green });
-    txt('一个开关，全天待命', bx + bw, by + bh + 40, { size: 20, weight: 600, color: C.blue2, align: 'right' });
-    ctx.restore();
-    return;
-  }
-
-  /* ============ 22-31s 表情包高光 ============ */
-  if (t < 31) {
-    const a = ease(seg(t, 22, 22.6));
-    ctx.save(); ctx.globalAlpha = a;
-    bigTitle(t, 22.2, 31, [{ text: '它还会自己发表情包', y: 140, size: 46, color: C.white }]);
-    txt('自动收录 · 本地留副本 · 三连打包一条发出不刷屏', W / 2, 186, { size: 21, weight: 500, color: C.dim, align: 'center' });
-    // 气泡 + 飞出的贴纸
-    card(t, 22.8, 380, 250, 520, 190, 'rgba(79,227,255,.5)');
-    txt('「收到，我看下——」', 640, 340, { size: 26, weight: 700, color: C.white, align: 'center' });
-    STK.forEach((im, i) => {
-      // 在 1280 画布内均匀铺开：边距 96，间距 (W - 192) / (n - 1)
-      const n = STK.length;
-      const tx = 96 + (W - 192) * (i / (n - 1));
-      const ty = 520 - (i % 2) * 66;
-      stickerFly(im, t, 23.4 + i * 0.45, [640, 420], [tx, ty], (i % 2 ? -1 : 1) * 0.9);
-    });
-    txt('打包成同一条消息发出 ✓', W / 2, 640, { size: 24, weight: 700, color: C.green, align: 'center' });
-    ctx.restore();
-    return;
-  }
-
-  /* ============ 31-40s 规矩可控 ============ */
-  if (t < 40) {
-    const a = ease(seg(t, 31, 31.6));
-    ctx.save(); ctx.globalAlpha = a;
-    bigTitle(t, 31.2, 40, [{ text: '规矩，你说了算', y: 128, size: 46, color: C.yellow }]);
-    const bx = 250, by = 180, bw = 780, bh = 360;
-    rrect(bx, by, bw, bh, 14); ctx.save(); ctx.clip();
-    if (IMGS.reply?.naturalWidth) {
-      const s = Math.max(bw / IMGS.reply.naturalWidth, bh / IMGS.reply.naturalHeight) * 1.35;
-      ctx.drawImage(IMGS.reply, bx + (bw - IMGS.reply.naturalWidth * s) / 2, by - 60, IMGS.reply.naturalWidth * s, IMGS.reply.naturalHeight * s);
-    }
-    ctx.restore();
-    rrect(bx, by, bw, bh, 14); ctx.strokeStyle = 'rgba(126,192,255,.45)'; ctx.lineWidth = 2; ctx.stroke();
-    const feats = [['只回选中的会话', C.blue2], ['@ 才回 / 关键词', C.cyan], ['免打扰时段', C.pink], ['/状态 /暂停', C.yellow]];
-    feats.forEach(([t2, c], i) => {
-      const d = 32.2 + i * 0.4;
-      const p = ease(clamp01((t - d) / 0.5));
-      if (p <= 0) return;
-      ctx.save(); ctx.globalAlpha = p;
-      const x = 200 + (i % 2) * 460, y = 566 + Math.floor(i / 2) * 66;
-      rrect(x, y, 420, 54, 12);
-      ctx.fillStyle = 'rgba(12,22,42,.9)'; ctx.fill();
-      ctx.strokeStyle = c + 'aa'; ctx.lineWidth = 2; ctx.stroke();
-      txt(t2, x + 210, y + 36, { size: 21, weight: 700, color: C.white, align: 'center' });
+      ctx.strokeStyle = 'rgba(126,192,255,.32)'; ctx.lineWidth = 2;
+      rrect(-s / 2, -s / 2, s, s, rr); ctx.stroke();
       ctx.restore();
+    }
+    slam('摸鱼瞳', W / 2, 392, { t, at: T_HERO + 0.22, size: 92, color: C.white, dur: 0.36 });
+    txt('MoYuTong', W / 2, 436, { size: 24, weight: 700, color: C.blue2, align: 'center', font: MONO, ls: 5, alpha: easeOut(seg(t, T_HERO + 0.45, T_HERO + 0.75)) });
+    slam('你 QQ 背后的 AI 搭子', W / 2, 498, { t, at: T_HERO + 0.55, size: 34, color: C.amber, dur: 0.3 });
+    const cs = [['免 API Key', C.mint], ['0 元', C.amber], ['本地跑', C.blue2], ['零依赖', C.cyan]];
+    ctx.font = `800 19px ${FONT}`;
+    let cx = W / 2 - (cs.reduce((a, c) => a + ctx.measureText(c[0]).width + 44 + 12, 0) - 12) / 2;
+    cs.forEach(([s2, c], i) => {
+      const w = ctx.measureText(s2).width + 44;
+      chip(s2, cx + w / 2, 568, c, t, T_HERO + 0.85 + i * 0.11, { w });
+      cx += w + 12;
     });
+    // 转场扫过
+    const wp = clamp01((t - (T_PANEL - 0.42)) / 0.42);
+    if (wp > 0) {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#04060a';
+      const x = -W + wp * (W * 2.2);
+      ctx.beginPath();
+      ctx.moveTo(x, -30); ctx.lineTo(x + W * 0.9, -30); ctx.lineTo(x - W * 0.3, H + 30); ctx.lineTo(x - W * 1.2, H + 30);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
     ctx.restore();
-    return;
+    return finish(t);
   }
 
-  /* ============ 40-49s 优势快闪 ============ */
-  if (t < 49) {
-    const a = ease(seg(t, 40, 40.6));
-    ctx.save(); ctx.globalAlpha = a;
-    bigTitle(t, 40.2, 49, [{ text: '为什么值得试', y: 150, size: 48, color: C.white }]);
+  /* ---------- D. 9.6-16.0 面板接管 ---------- */
+  if (t < T_STK) {
+    const R = window.__RECTS || {};
+    const phase1 = t < 13.1;
+    if (phase1) {
+      const RR = (R.overview && R.overview.rects) || {};
+      // 运镜：贴近左侧状态卡 → 右移 → 拉远看全貌
+      const pan = easeInOut(seg(t, 11.1, 11.9));
+      const out = easeInOut(seg(t, 12.0, 12.85));
+      let view = lerpView({ x: 10, y: 100, w: 740, h: 397 }, { x: 390, y: 100, w: 740, h: 397 }, pan);
+      view = lerpView(view, { x: 0, y: 0, w: 1440, h: 773 }, out);
+      const card = winCard(SHOTS.overview, 150, 92, 980, 552, t, T_PANEL, {
+        view, url: '127.0.0.1:8787 · 摸鱼瞳监控台', accent: C.blue2,
+      });
+      if (card && card.rect) {
+        highlight(card.rect(RR.cardQqMain), C.mint, t, 10.3, '');
+        highlight(card.rect(RR.cardAiMain), C.blue2, t, 11.35, '');
+        highlight(card.rect(RR.cardDsMain), C.amber, t, 12.15, '');
+      }
+      slam('一个开关，全天待命', W / 2, 690, { t, at: 12.5, size: 34, color: C.white, dur: 0.3 });
+    } else {
+      const RR = (R.feed && R.feed.rects) || {};
+      const card = winCard(SHOTS.feed, 150, 168, 980, 350, t, 13.1, {
+        view: { x: 575, y: 296, w: 855, h: 276 },
+        url: '127.0.0.1:8787 · 实时动态', accent: C.mint,
+      });
+      if (card && card.rect) highlight(card.rect(RR.feedList), C.cyan, t, 13.3, '');
+      slam('24 收 / 19 回', W / 2, 600, { t, at: 13.9, size: 44, color: C.mint, dur: 0.3 });
+      txt('每一条都记在面板上', W / 2, 646, { size: 22, weight: 600, color: C.dim, align: 'center', alpha: easeOut(seg(t, 14.25, 14.55)) });
+    }
+    // 进入下一段的推进感
+    if (t > 15.2) {
+      const p = clamp01((t - 15.2) / 0.8);
+      ctx.save();
+      ctx.globalAlpha = p * 0.8;
+      ctx.fillStyle = '#04060a';
+      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.restore();
+      txt('重点来了', W / 2, H / 2 + 12, { size: 30 + 30 * p, weight: 900, color: '#fff', align: 'center', alpha: p, stroke: 1 });
+    }
+    return finish(t);
+  }
+
+  /* ---------- E. 16.0-22.4 表情包高光 ---------- */
+  if (t < T_RULES) {
+    slam('它还会自己发表情包', W / 2, 116, { t, at: T_STK + 0.08, size: 60, color: C.white, dur: 0.32 });
+    txt('自动收录 · 本地留副本 · 三连打包一条发出', W / 2, 160, { size: 20, weight: 600, color: C.dim, align: 'center', alpha: easeOut(seg(t, T_STK + 0.3, T_STK + 0.62)) });
+
+    // 贴纸齐射 → 向中心收拢 → 淡出
+    const SPOTS = [
+      [190, 292, -0.45], [420, 418, 0.36], [640, 266, -0.3], [860, 412, 0.42],
+      [1070, 296, -0.4], [318, 184, 0.28], [958, 186, -0.32],
+    ];
+    const conv = clamp01((t - 19.05) / 0.7);
+    for (let i = 0; i < 7; i++) {
+      const im = STK[i % STK.length];
+      const [tx, ty, rot] = SPOTS[i];
+      const at = T_STK + 0.42 + i * 0.34;
+      const k = easeIn(conv);
+      const px = tx + (640 - tx) * k;
+      const py = ty + (300 - ty) * k;
+      const size = 156 * (1 - 0.5 * k);
+      const fade = 1 - 0.92 * easeOut(clamp01((conv - 0.42) / 0.58));
+      sticker(im, t, at, [640 + (i % 2 ? 300 : -300), 40 + (i % 3) * 50], [px, py], rot, size, fade);
+    }
+
+    // 打包结果：一条消息装三张
+    if (t > 19.75) {
+      const p = easeOut(seg(t, 19.75, 20.12));
+      const bx = 390, by = 216, bw = 500, bh = 202;
+      const e = backOut(clamp01((t - 19.75) / 0.34));
+      ctx.save();
+      ctx.globalAlpha = p;
+      ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(0.9 + 0.1 * e, 0.9 + 0.1 * e);
+      ctx.translate(-(bx + bw / 2), -(by + bh / 2));
+      ctx.shadowColor = 'rgba(0,0,0,.82)'; ctx.shadowBlur = 42; ctx.shadowOffsetY = 18;
+      rrect(bx, by, bw, bh, 18);
+      ctx.fillStyle = 'rgba(12,22,42,.96)'; ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      ctx.strokeStyle = C.cyan + '99'; ctx.lineWidth = 2.5; rrect(bx, by, bw, bh, 18); ctx.stroke();
+      txt('「收到，我看下——」', bx + 26, by + 45, { size: 22, weight: 800, color: '#eaf2ff' });
+      [0, 3, 1].forEach((si, i) => {
+        const im = STK[si], s = 62;
+        const x = bx + 26 + i * 72 + s / 2, y = by + 122;
+        const q = clamp01((t - (20.0 + i * 0.07)) / 0.28);
+        if (!im.naturalWidth || q <= 0) return;
+        const ee = backOut(q);
+        ctx.save();
+        ctx.globalAlpha = easeOut(q) * p;
+        ctx.translate(x, y); ctx.scale(0.4 + 0.6 * ee, 0.4 + 0.6 * ee);
+        rrect(-s / 2, -s / 2, s, s, 8); ctx.save(); ctx.clip();
+        ctx.drawImage(im, -s / 2, -s / 2, s, s); ctx.restore();
+        ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 2;
+        rrect(-s / 2, -s / 2, s, s, 8); ctx.stroke();
+        ctx.restore();
+      });
+      const sq = easeOut(seg(t, 20.35, 20.6));
+      ctx.globalAlpha = p * sq;
+      rrect(bx + bw - 136, by + 104, 110, 36, 18);
+      ctx.fillStyle = 'rgba(70,224,168,.16)'; ctx.fill();
+      ctx.strokeStyle = C.mint + 'aa'; ctx.lineWidth = 1.6; ctx.stroke();
+      txt('已发送 ✓', bx + bw - 81, by + 128, { size: 16, weight: 800, color: C.mint, align: 'center' });
+      ctx.restore();
+    }
+    if (t > 20.7) {
+      slam('打包成同一条消息', W / 2, 480, { t, at: 20.7, size: 40, color: C.mint, dur: 0.3 });
+    }
+    if (t > 21.15) {
+      slam('不刷屏 ✓', W / 2, 532, { t, at: 21.15, size: 30, color: C.cyan, dur: 0.3 });
+    }
+    txt('素材库自动收录 116 个 · 每张都留本地副本', W / 2, 598, { size: 17, weight: 600, color: C.faint, align: 'center', alpha: easeOut(seg(t, 18.4, 18.8)) });
+    return finish(t);
+  }
+
+  /* ---------- F. 22.4-28.8 规矩你定 ---------- */
+  if (t < T_PERK) {
+    slam('规矩，你说了算', W / 2, 118, { t, at: T_RULES + 0.08, size: 60, color: C.amber, dur: 0.32 });
+    // 镜头沿设置表单缓慢下移
+    const vp = easeInOut(seg(t, 22.9, 27.4));
+    const card = winCard(SHOTS.reply, 300, 162, 680, 400, t, T_RULES + 0.3, {
+      view: lerpView({ x: 430, y: 132, w: 580, h: 311 }, { x: 430, y: 330, w: 580, h: 311 }, vp),
+      url: '设置 · 回复规则', accent: C.amber, dur: 0.48,
+    });
+    void card;
+    const feats = [
+      ['只回选中的会话', C.blue2, 380, 600], ['@ 才回 / 关键词', C.cyan, 900, 600],
+      ['免打扰时段', C.pink, 380, 664], ['/状态 /暂停 /帮助', C.amber, 900, 664],
+    ];
+    ctx.font = `800 20px ${FONT}`;
+    feats.forEach(([s2, c, x, y], i) => {
+      const w = ctx.measureText(s2).width + 50;
+      chip(s2, x, y, c, t, T_RULES + 1.9 + i * 0.4, { w, size: 20 });
+    });
+    txt('全部在面板里点两下', W / 2, 708, { size: 17, weight: 700, color: C.faint, align: 'center', alpha: easeOut(seg(t, T_RULES + 3.7, T_RULES + 4.0)) });
+    // 推进
+    buildBars(t, 28.0, 28.8, C.amber);
+    return finish(t);
+  }
+
+  /* ---------- G. 28.8-35.2 优势齐射 ---------- */
+  if (t < T_CTA) {
+    slam('为什么值得试', W / 2, 118, { t, at: T_PERK + 0.05, size: 54, color: C.white, dur: 0.3 });
     const perks = [
-      ['0 元', '网页版直连，不用 API Key', C.yellow],
-      ['141 KB', '安装包，双击即用', C.cyan],
-      ['本地', '数据只在你电脑上', C.green],
-      ['MIT', '开源免费，可改可抄', C.blue2],
-      ['2 分钟', '装完就能干活', C.pink],
-      ['零依赖', '不用装任何第三方库', C.white]
+      ['145 KB', '安装包 · 双击即用', C.cyan],
+      ['0 元', '网页版直连，不用 API Key', C.amber],
+      ['本地', '数据只在你电脑上', C.mint],
+      ['零依赖', '不用装任何第三方库', C.blue2],
+      ['93 项', '自动测试全绿', C.pink],
+      ['MIT', '开源免费，可改可抄', C.white],
     ];
     perks.forEach(([k, v, c], i) => {
-      const d = 41.0 + i * 0.62;
-      const p = clamp01((t - d) / 0.45);
+      const at = T_PERK + 0.4 + i * 0.4;
+      const p = clamp01((t - at) / 0.3);
       if (p <= 0) return;
       const col = i % 3, row = Math.floor(i / 3);
-      const x = 130 + col * 360, y = 250 + row * 200;
-      const s = 0.7 + 0.3 * ease(p) + bounce(clamp01((t - d - 0.45)) * 2) * 0.12;
+      const x = 116 + col * 356, y = 190 + row * 214;
+      const w = 330, h = 182;
+      const sc = 0.72 + 0.28 * backOut(p) + pulse(t, at, 0.32, 0.09);
       ctx.save();
-      ctx.globalAlpha = ease(p);
-      ctx.translate(x + 160, y + 80); ctx.scale(s, s); ctx.translate(-(x + 160), -(y + 80));
-      rrect(x, y, 320, 160, 18);
-      const g = ctx.createLinearGradient(x, y, x, y + 160);
-      g.addColorStop(0, 'rgba(16,28,52,.95)'); g.addColorStop(1, 'rgba(10,18,34,.95)');
+      ctx.globalAlpha = easeOut(p);
+      ctx.translate(x + w / 2, y + h / 2); ctx.scale(sc, sc);
+      ctx.rotate((1 - backOut(p)) * (i % 2 ? 0.08 : -0.08));
+      ctx.translate(-(x + w / 2), -(y + h / 2));
+      rrect(x, y, w, h, 16);
+      const g = ctx.createLinearGradient(x, y, x, y + h);
+      g.addColorStop(0, 'rgba(18,30,54,.96)'); g.addColorStop(1, 'rgba(9,15,28,.96)');
       ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = c + '77'; ctx.lineWidth = 2.5; ctx.stroke();
-      txt(k, x + 160, y + 82, { size: 46, weight: 800, color: c, align: 'center' });
-      txt(v, x + 160, y + 124, { size: 17, weight: 500, color: C.dim, align: 'center' });
+      ctx.strokeStyle = c + '88'; ctx.lineWidth = 2.5; ctx.stroke();
+      txt(k, x + w / 2, y + 92, { size: 46, weight: 900, color: c, align: 'center', font: MONO });
+      txt(v, x + w / 2, y + 132, { size: 15, weight: 600, color: C.dim, align: 'center' });
       ctx.restore();
     });
-    ctx.restore();
-    return;
+    if (t > 32.0) {
+      slam('一个安装包，全都有', W / 2, 660, { t, at: 32.0, size: 44, color: C.white, dur: 0.3 });
+    }
+    if (t > 33.2) {
+      const p = clamp01((t - 33.2) / 0.7);
+      ctx.save();
+      ctx.globalAlpha = p * 0.85;
+      ctx.fillStyle = '#04060a';
+      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.restore();
+      txt('现在就试试', W / 2, H / 2 + 14, { size: 34 + 34 * p, weight: 900, color: '#fff', align: 'center', alpha: p, stroke: 1 });
+    }
+    return finish(t);
   }
 
-  /* ============ 49-60s 号召 ============ */
-  const a3 = ease(seg(t, 49, 49.8));
-  ctx.save(); ctx.globalAlpha = a3;
-  const p = ease(seg(t, 49.2, 50.4));
-  if (LOGO.naturalWidth) {
-    const s = 150 * (0.75 + 0.25 * p);
-    ctx.save(); ctx.translate(W / 2, 190); ctx.rotate(bounce(clamp01((t - 49.4)) * 2) * 0.2);
-    ctx.shadowColor = 'rgba(80,160,255,.5)'; ctx.shadowBlur = 34;
-    ctx.drawImage(LOGO, -s / 2, -s / 2, s, s);
+  /* ---------- H. 35.2-40.0 收尾 ---------- */
+  {
+    ring(t, T_CTA, C.blue2, 700, 0.8, 6);
+    const lp = clamp01((t - T_CTA) / 0.42);
+    if (LOGO.naturalWidth && lp > 0) {
+      const e = backOut(lp);
+      const s = 132 * (2.2 - 1.2 * e);
+      const rr = s * 0.21;
+      ctx.save();
+      ctx.globalAlpha = clamp01(lp * 3);
+      ctx.translate(W / 2, 132);
+      ctx.shadowColor = 'rgba(80,160,255,.7)'; ctx.shadowBlur = 40;
+      rrect(-s / 2, -s / 2, s, s, rr); ctx.fillStyle = '#070c16'; ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+      ctx.save(); rrect(-s / 2, -s / 2, s, s, rr); ctx.clip();
+      ctx.drawImage(LOGO, -s / 2, -s / 2, s, s);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(126,192,255,.3)'; ctx.lineWidth = 1.6;
+      rrect(-s / 2, -s / 2, s, s, rr); ctx.stroke();
+      ctx.restore();
+    }
+    slam('摸鱼瞳 MoYuTong', W / 2, 262, { t, at: T_CTA + 0.2, size: 60, color: C.white, dur: 0.34 });
+    slam('你 QQ 背后的 AI 搭子 · 现在就试试', W / 2, 312, { t, at: T_CTA + 0.5, size: 28, color: C.amber, dur: 0.3, stroke: false });
+
+    const links = [
+      ['官网下载', 'blushhorizon.github.io/MoYuTong', C.cyan],
+      ['开源仓库', 'github.com/BlushHorizon/MoYuTong', C.blue2],
+      ['交流群', '1128593359 · 暗号 moyutong520', C.pink],
+    ];
+    links.forEach(([k, v, c], i) => {
+      const at = T_CTA + 0.8 + i * 0.38;
+      const p = clamp01((t - at) / 0.34);
+      if (p <= 0) return;
+      const x = 290, y = 366 + i * 58, w = 700, h = 48;
+      const e = backOut(p);
+      ctx.save();
+      ctx.globalAlpha = easeOut(p);
+      ctx.translate(x + w / 2 + (1 - e) * (i % 2 ? 120 : -120), y + h / 2);
+      ctx.scale(0.9 + 0.1 * e, 0.9 + 0.1 * e);
+      rrect(-w / 2, -h / 2, w, h, 24);
+      ctx.fillStyle = 'rgba(11,19,33,.94)'; ctx.fill();
+      ctx.strokeStyle = c + 'aa'; ctx.lineWidth = 2; ctx.stroke();
+      txt(k, -w / 2 + 26, 8, { size: 20, weight: 800, color: c });
+      txt(v, w / 2 - 26, 8, { size: 19, weight: 700, color: C.white, align: 'right', font: MONO });
+      ctx.restore();
+    });
+
+    if (t > 37.45) {
+      slam('40 秒看完 · 立刻上手', W / 2, 596, { t, at: 37.45, size: 34, color: C.mint, dur: 0.3 });
+    }
+    const fine = easeOut(seg(t, 37.9, 38.25));
+    txt('本软件仅学习使用，请在 24h 内删除 · 请勿用于骚扰 · 建议用小号', W / 2, 664, { size: 17, weight: 700, color: '#9fb0c6', align: 'center', alpha: fine });
+    txt('MIT 开源 · 侵权 / 合作：1413214574@qq.com', W / 2, 692, { size: 14, weight: 500, color: C.faint, align: 'center', alpha: easeOut(seg(t, 38.3, 38.6)) });
+    return finish(t);
+  }
+}
+
+/* 收尾：闪白 + 扫描线 + 暗角，统一叠在最上层 */
+function finish(t) {
+  ctx.restore();   // 取消震动位移
+
+  const f = flashAmt(t);
+  if (f > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.92, f);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
-  txt('摸鱼瞳 MoYuTong', W / 2, 330, { size: 56, weight: 800, color: C.white, align: 'center', alpha: ease(seg(t, 49.6, 50.6)) });
-  txt('你 QQ 背后的 AI 搭子 · 现在就试试', W / 2, 376, { size: 24, weight: 600, color: C.yellow, align: 'center', alpha: ease(seg(t, 50, 51)) });
-
-  const links = [
-    ['官网下载', 'blushhorizon.github.io/MoYuTong', C.cyan],
-    ['开源仓库', 'github.com/BlushHorizon/MoYuTong', C.blue2],
-    ['交流群', '1128593359 · 暗号 moyutong520', C.pink]
-  ];
-  links.forEach(([k, v, c], i) => {
-    const d = 51.2 + i * 0.45;
-    const q = ease(clamp01((t - d) / 0.5));
-    if (q <= 0) return;
-    const y = 440 + i * 62;
-    ctx.save(); ctx.globalAlpha = q;
-    rrect(280, y, 720, 50, 25);
-    ctx.fillStyle = 'rgba(12,22,42,.85)'; ctx.fill();
-    ctx.strokeStyle = c + '66'; ctx.lineWidth = 2; ctx.stroke();
-    txt(k, 310, y + 33, { size: 20, weight: 700, color: c });
-    txt(v, 970, y + 33, { size: 20, weight: 600, color: C.white, align: 'right', font: MONO });
-    ctx.restore();
-  });
-  txt('⚠️ 玩具级作品 · 自动发送有风险 · 请勿用于骚扰 · 使用即接受风险', W / 2, 664, { size: 15, weight: 500, color: '#7b8aa3', align: 'center', alpha: ease(seg(t, 53, 54)) });
-  txt('MIT 开源 · 侵权或合作：1413214574@qq.com', W / 2, 692, { size: 13, weight: 400, color: '#5d6b82', align: 'center', alpha: ease(seg(t, 53.4, 54.4)) });
+  // 扫描线
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = '#000';
+  for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+  ctx.restore();
+  // 节拍边框脉冲
+  const at = Math.floor(t / BEAT) * BEAT;
+  const bp = 1 - (t - at) / BEAT;
+  ctx.save();
+  ctx.globalAlpha = bp * bp * 0.22;
+  ctx.strokeStyle = C.blue;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, W - 6, H - 6);
   ctx.restore();
 }
 
@@ -346,7 +844,7 @@ if (new URLSearchParams(location.search).get('cap') === '1') {
 } else {
   window.__ready = true;
   const t0 = performance.now();
-  (function loop(now) { renderAt((now - t0) / 1000); requestAnimationFrame(loop); })(t0);
+  (function loop(now) { renderAt(((now - t0) / 1000) % DUR); requestAnimationFrame(loop); })(t0);
 }
 window.__seek = (s) => renderAt(s);
 function play() { const t0 = performance.now(); (function l(n) { renderAt((n - t0) / 1000); requestAnimationFrame(l); })(t0); }

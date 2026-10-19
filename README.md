@@ -45,13 +45,13 @@
 所以：**别提 PR 期待我合并**（我没时间看 diff），但**建议尽管提，认认真真提的我都记着**。
 想自己动手改也行，MIT 协议摆在这儿，随便 fork。
 
-## 🎬 60 秒宣传片
+## 🎬 40 秒宣传片
 
-[▶ 官网观看](https://blushhorizon.github.io/MoYuTong/#promo) · 视频源文件在 `site/assets/moyutong-promo.mp4`
+[▶ 官网观看](https://blushhorizon.github.io/MoYuTong/#films) · 视频源文件在 `site/assets/moyutong-promo.mp4`
 
 <video src="https://blushhorizon.github.io/MoYuTong/assets/moyutong-promo.mp4" controls muted loop playsinline width="100%"></video>
 
-> 配乐由 JS 合成器现场合成（120 BPM 合成波），画面 canvas 逐帧离格渲染——零素材、零剪辑软件。
+> 配乐由 JS 合成器现场合成（150 BPM 电子舞曲），画面 canvas 逐帧渲染——零素材、零剪辑软件。
 
 ## 亮点
 
