@@ -69,7 +69,7 @@ function checkText(dir = DIST, depth = 0) {
     }
     const m11 = t.match(/\b1[3-9]\d{9}\b/g);
     for (const c of new Set(m11 || [])) {
-      // 允许出现在「联系邮箱」里（1413214574@qq.com）
+      // 允许出现在「联系邮箱」里（邮箱地址见 README）
       const idx = t.indexOf(c);
       const near = t.slice(Math.max(0, idx - 12), idx + 20);
       if (!/@qq\.com/.test(near)) problems.push(`${rel}  ::  疑似真实 QQ 号 ${c}`);

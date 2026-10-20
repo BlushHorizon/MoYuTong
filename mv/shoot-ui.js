@@ -31,7 +31,7 @@ const INJECT = `
     ['g','产品交流群', '新版本什么时候发', 1],
     ['p','Aurora', '帮我看下这个报错', 0],
     ['p','小柚', '[表情]', 0],
-    ['g','摸鱼研究所', '自动回复能设置关键词吗', 0],
+    ['g','夜聊俱乐部', '自动回复能设置关键词吗', 0],
     ['p','老K', '在吗', 0],
     ['g','服务器运维群', '今晚两点重启维护', 0],
     ['p','林间小路', '好的收到', 0]
@@ -63,6 +63,22 @@ const INJECT = `
     if (qs) qs.textContent = '账号 deepseek(****8888)';
     const pill = document.getElementById('qqStatusText');
     if (pill) pill.textContent = '已连接：deepseek(****8888)';
+    const pillWrap = document.getElementById('qqStatusPill');
+    if (pillWrap) pillWrap.className = 'pill on';
+    const qm = document.getElementById('cardQqMain');
+    if (qm) { qm.textContent = '已连接'; qm.className = 'card-main ok'; }
+    const am = document.getElementById('cardAiMain');
+    if (am) { am.textContent = '运行中'; am.className = 'card-main ok'; }
+    const as = document.getElementById('cardAiSub');
+    if (as) as.textContent = '网页版 DeepSeek · 4 个会话 · 群回 1%';
+    const dm = document.getElementById('cardDsMain');
+    if (dm) { dm.textContent = '就绪'; dm.className = 'card-main ok'; }
+    const ds = document.getElementById('cardDsSub');
+    if (ds) ds.textContent = '轮次 3/50 · 提示词已发送';
+    const tg = document.getElementById('aiToggle');
+    if (tg) tg.checked = true;
+    const lab = document.querySelector('.ai-label');
+    if (lab) lab.textContent = 'AI 自动回复';
     const cmd = document.getElementById('setCmdSenders');
     if (cmd) cmd.value = '8888';
     const sel = document.getElementById('setTargetChat');
@@ -82,10 +98,10 @@ const INJECT = `
     const feed = [
       ['in','群 [星河生存服] 夜见','这关打不过啊', 0],
       ['skip','群 [星河生存服] 夜见','跳过：群聊中未 @ 我', 52],
-      ['out','群 [星河生存服] 摸鱼瞳','收到，我看下——多半是配置文件少了一行，两分钟。', 71],
+      ['out','群 [星河生存服] 群崽','收到，我看下——多半是配置文件少了一行，两分钟。', 71],
       ['in','私聊 Aurora','帮我看下这个报错', 128],
       ['out','私聊 Aurora','看过了，是端口被占。结束掉再启动就行。', 152],
-      ['ai','群 [星河生存服] 摸鱼瞳','自主发表情包 ×3（打包为一条消息）', 196],
+      ['ai','群 [星河生存服] 群崽','自主发表情包 ×3（打包为一条消息）', 196],
       ['in','群 [产品交流群] 小柚','新版本什么时候发', 240]
     ];
     const LABEL = { in:'收到', out:'已回复', ai:'AI 回复', skip:'跳过', err:'错误' };
@@ -137,7 +153,7 @@ const SHOTS = [
     rects: ['setQuietEnabled', 'setQuietFrom', 'setQuietTo', 'setKeywords', 'setMention'] },
   { name: '06-settings-engine', alias: 'engine', fake: true, actions: ["document.getElementById('btnSettings').click()"], wait: 1000, modalScroll: 2,
     rects: ['setProvider', 'setWebSite', 'webSiteHint', 'setCdpPort', 'setWebPrompt'] },
-  { name: '07-stickers', alias: 'stickers', fake: true, actions: ["document.getElementById('btnSettings').click()"], wait: 1200, modalScroll: 3,
+  { name: '07-stickers', alias: 'stickers', fake: true, actions: ["document.getElementById('btnSettings').click()"], wait: 1200, scrollToId: 'stickerStats',
     rects: ['stickerStats', 'stickerList', 'btnStickerClear', 'setMode', 'setWsUrl', 'settingsModal'] },
   { name: '08-site-download', alias: 'site', url: 'http://127.0.0.1:8788/', anchor: 'download', fake: false, clipSection: 'download' }
 ];
@@ -206,6 +222,12 @@ const SHOTS = [
     // 打开设置弹层会重新拉一次数据覆盖脱敏内容，这里再脱敏一次
     if (shot.fake) { await cdp('Runtime.evaluate', { expression: 'window.__fake && window.__fake()', returnByValue: true }); await sleep(350); }
     if (shot.scrollTop) { await cdp('Runtime.evaluate', { expression: `window.scrollTo(0, ${shot.scrollTop})` }); await sleep(450); }
+    if (shot.scrollToId) {
+      await cdp('Runtime.evaluate', {
+        expression: `(() => { const el = document.getElementById('${shot.scrollToId}'); if (el) el.scrollIntoView({ block: 'start' }); })()`
+      });
+      await sleep(700);
+    }
     if (shot.modalScroll !== undefined) {
       const r = await cdp('Runtime.evaluate', {
         expression: `(() => {

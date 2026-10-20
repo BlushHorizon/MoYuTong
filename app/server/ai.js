@@ -213,7 +213,7 @@ class AIResponder {
         const st = this.status();
         const ds = st.deepseek || {};
         const lines = [
-          '📊 摸鱼瞳运行状态',
+          '📊 群崽运行状态',
           `自动回复：${st.enabled ? '开' : '关'}`,
           `大脑：${st.providerLabel}`,
           `回复范围：${st.scope === 'private' ? '仅私聊' : '私聊+群聊'}${st.replyMode === 'target' ? `（只回选中会话${st.targetChatKeys.length ? ` x${st.targetChatKeys.length}` : ''}）` : ''}`,

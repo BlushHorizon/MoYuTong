@@ -1,8 +1,8 @@
 ﻿;=====================================================
-;  摸鱼瞳 MoYuTong · 安装程序 (NSIS Unicode)
+;  群崽 QunZai · 安装程序 (NSIS Unicode)
 ;  编译: 先 node precheck-package.js（隐私闸门，必须 exit 0）
 ;        再 makensis.exe setup.nsi   (在项目根目录执行)
-;  默认安装到 D:\摸鱼瞳，附 开启.bat / 关闭.bat
+;  默认安装到 D:\群崽，附 开启.bat / 关闭.bat
 ;=====================================================
 Unicode true
 SetCompressor /SOLID lzma
@@ -10,13 +10,13 @@ SetCompressor /SOLID lzma
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 
-!define APPNAME "摸鱼瞳 MoYuTong"
-!define REGKEY "Software\MoYuTong"
-!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\MoYuTong"
+!define APPNAME "群崽 QunZai"
+!define REGKEY "Software\QunZai"
+!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QunZai"
 
 Name "${APPNAME}"
-OutFile "H:\安装包\摸鱼瞳MoYuTong安装包.exe"
-InstallDir "D:\摸鱼瞳"
+OutFile "H:\安装包\群崽QunZai安装包.exe"
+InstallDir "D:\群崽"
 InstallDirRegKey HKCU "${REGKEY}" "InstallDir"
 RequestExecutionLevel user
 Icon "dist\assets\icon.ico"
@@ -25,14 +25,14 @@ Icon "dist\assets\icon.ico"
 
 VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=0 "ProductName" "${APPNAME}"
-VIAddVersionKey /LANG=0 "FileDescription" "摸鱼瞳 MoYuTong 安装程序"
+VIAddVersionKey /LANG=0 "FileDescription" "群崽 QunZai 安装程序"
 VIAddVersionKey /LANG=0 "FileVersion" "1.0.0.0"
-VIAddVersionKey /LANG=0 "CompanyName" "QQ WebChat"
+VIAddVersionKey /LANG=0 "CompanyName" "QunZai"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN "$INSTDIR\开启.bat"
-!define MUI_FINISHPAGE_RUN_TEXT "启动 摸鱼瞳（打开服务和网页）"
+!define MUI_FINISHPAGE_RUN_TEXT "启动 群崽（打开服务和网页）"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -79,7 +79,6 @@ Section "主程序" SecMain
   File /r "dist\assets"
   File "dist\*.bat"
   File /nonfatal "dist\launcher.ps1"
-  File /nonfatal "dist\README.md"
   File /nonfatal "dist\config.json"
   ; 不再打包 dist\setup.nsi：那是打包脚本自己，用户拿到没用，
   ; 而且旧副本里还留着 File /r "dist\*" 这种会连隐私一起打进去的写法，纯属误导
@@ -99,7 +98,7 @@ Section "主程序" SecMain
   WriteRegStr HKCU "${REGKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\assets\icon.ico"
-  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "MoYuTong"
+  WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "QunZai"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "1.0.0.0"
   WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoModify" 1
@@ -107,8 +106,8 @@ Section "主程序" SecMain
 
   ; ---------- 快捷方式 ----------
   ; 桌面：直接给 .bat 快捷方式（开启 / 关闭），双击即用
-  CreateShortCut "$DESKTOP\摸鱼瞳-开启.lnk" "$INSTDIR\开启.bat" "" "$INSTDIR\assets\icon.ico" 0
-  CreateShortCut "$DESKTOP\摸鱼瞳-关闭.lnk" "$INSTDIR\关闭.bat" "" "$INSTDIR\assets\icon.ico" 0
+  CreateShortCut "$DESKTOP\群崽-开启.lnk" "$INSTDIR\开启.bat" "" "$INSTDIR\assets\icon.ico" 0
+  CreateShortCut "$DESKTOP\群崽-关闭.lnk" "$INSTDIR\关闭.bat" "" "$INSTDIR\assets\icon.ico" 0
 
   ; 开始菜单
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
@@ -123,8 +122,8 @@ Section "Uninstall"
   ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\launcher.ps1" -Stop' $0
 
   Delete "$DESKTOP\${APPNAME}.lnk"   ; 旧版应用快捷方式
-  Delete "$DESKTOP\摸鱼瞳-开启.lnk"
-  Delete "$DESKTOP\摸鱼瞳-关闭.lnk"
+  Delete "$DESKTOP\群崽-开启.lnk"
+  Delete "$DESKTOP\群崽-关闭.lnk"
   RMDir /r "$SMPROGRAMS\${APPNAME}"
 
   SetOutPath "$TEMP"

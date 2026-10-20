@@ -53,14 +53,14 @@ console.error = ((orig) => (...a) => { const l = `[${_tsNow()}] [ERROR] ${_toLin
 _rotateIfNeeded();
 {
   const d = new Date(); const p = (n) => String(n).padStart(2, '0');
-  console.log(`======== 摸鱼瞳 MoYuTong 服务启动 ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ========`);
+  console.log(`======== 群崽 QunZai 服务启动 ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ========`);
   console.log('  -----------------------------------------------');
   console.log('  ⚠️ 玩具级学习作品，非生产级产品。使用即表示你已接受：');
   console.log('     · 自动发送 AI 生成内容到 QQ，请勿用于骚扰/刷屏，建议小号');
   console.log('     · 本软件仅学习使用，请在 24h 内删除——它是玩具，试过就好');
   console.log('     · 非反代/无中转/无逆向，但 CDP 驱动网页版违反 DeepSeek 用户协议');
   console.log('     · 数据仅存本机，无遥测；一切后果由使用者自担');
-  console.log('     · 侵权/投诉/合作：1413214574@qq.com   MIT 开源');
+  console.log('     · 问题反馈：github.com/BlushHorizon/QunZai/issues   MIT 开源');
   console.log('  -----------------------------------------------');
 }
 /** 运行计数（由 broadcast 汇总，供心跳行输出） */

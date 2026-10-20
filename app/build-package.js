@@ -24,7 +24,7 @@ const DIST = path.join(ROOT, 'dist');
 /* 目录级同步 */
 const DIRS = ['server', 'public', 'assets'];
 /* 单文件同步（从源根目录） */
-const FILES = ['launcher.ps1', 'README.md'];
+const FILES = ['launcher.ps1'];
 /* 只同步固定几个 bat：start.bat / 停止服务.bat 是开发用的，不进包 */
 const BATS = ['开启.bat', '关闭.bat'];
 
@@ -95,7 +95,7 @@ n++;
 }
 
 console.log('\n=== 3. 清掉不该进包的文件 ===');
-for (const junk of ['setup.nsi', 'data', 'precheck-package.js', 'server/atomic.js.tmp']) {
+for (const junk of ['setup.nsi', 'data', 'precheck-package.js', 'server/atomic.js.tmp', 'README.md']) {
   const p = path.join(DIST, junk);
   if (fs.existsSync(p)) {
     if (junk === 'data') {
@@ -127,7 +127,7 @@ if (process.argv.includes('--installer')) {
   const r = spawnSync(makensis, ['setup.nsi'], { cwd: ROOT, encoding: 'utf8' });
   process.stdout.write((r.stdout || '') + (r.stderr || ''));
   if (r.status !== 0) { console.error('✗ makensis 失败'); process.exit(1); }
-  const out = 'H:\\安装包\\摸鱼瞳MoYuTong安装包.exe';
+  const out = 'H:\\安装包\\群崽QunZai安装包.exe';
   if (fs.existsSync(out)) {
     const buf = fs.readFileSync(out);
     const crypto = require('crypto');

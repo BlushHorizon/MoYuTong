@@ -1,6 +1,6 @@
 'use strict';
 /* =========================================================
-   摸鱼瞳 MoYuTong — 官网交互
+   群崽 QunZai — 官网交互
    ========================================================= */
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -153,7 +153,7 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   if (!qq) return;
   const steps = $$('[data-step]', qq).sort((a, b) => Number(a.dataset.step) - Number(b.dataset.step));
   const m2 = $('#m2text');
-  const m2Text = '先看第 3 行——依赖没装。目录里 npm i 一下再跑。';
+  const m2Text = '冷场检测到。新收了 12 张表情，谁来点个题？';
   const replay = $('#btnReplay');
   let timers = [];
 
@@ -259,8 +259,8 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
   const CHAT = [
     '这关打不过啊', '谁有多的显卡支架', '前排蹲一个教程', '笑死，这机器人比人勤快',
-    '今晚肝到三点', '在吗', '收到，马上改', '作业写完了吗', '再摸五分钟',
-    '这 AI 回得比我快', '等等，它还会发表情包', '群主呢', '别卷了',
+    '今晚肝到三点', '在吗', '这梗我接了', '作业写完了吗', '再来一张',
+    '这 AI 接梗比我快', '等等，它还会发表情包', '群主呢', '别卷了',
   ];
   const STK = ['stk1.jpg', 'stk2.jpg', 'stk4.jpg', 'stk6.jpg'].map((s) => {
     const i = new Image(); i.src = 'assets/' + s; return i;

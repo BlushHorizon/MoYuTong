@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<title>摸鱼瞳 MoYuTong · 宣传片 v2</title>
+<title>群崽 QunZai · 宣传片 v2</title>
 <style>
   html, body { margin: 0; background: #04060a; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { box-shadow: 0 0 90px rgba(80, 160, 255, .22); }
@@ -22,7 +22,7 @@
 <script>
 'use strict';
 /* =========================================================
-   摸鱼瞳 宣传片 v2 —— 40 秒 · 150 BPM · 节拍硬切
+   群崽 宣传片 v2 —— 40 秒 · 150 BPM · 节拍硬切
    真实界面截图（已脱敏）+ 代码生成动效；无剪辑软件、无素材库
    ========================================================= */
 const W = 1280, H = 720;
@@ -43,7 +43,7 @@ const T_HERO = 8.0, T_PANEL = 9.6, T_STK = 16.0, T_RULES = 22.4, T_PERK = 28.8, 
 const IMPACTS = [T_HERO, T_STK, T_RULES, T_PERK, T_CTA];
 
 /* ---------------- 资源 ---------------- */
-const LOGO = new Image(); LOGO.src = '../site/assets/moyutong-avatar-640.png';
+const LOGO = new Image(); LOGO.src = '../site/assets/qunzai-avatar-640.png';
 const STK_SRC = ['stk1.jpg', 'stk2.jpg', 'stk3.png', 'stk4.jpg', 'stk6.jpg'];
 const STK = STK_SRC.map((s) => { const i = new Image(); i.src = '../site/assets/' + s; return i; });
 const SHOT_SRC = {
@@ -263,7 +263,7 @@ function chip(text, x, y, color, t, at, o = {}) {
 
 /* 窗口卡片：真实界面截图 + 浏览器 chrome */
 function winCard(im, x, y, w, h, t, at, o = {}) {
-  const { panX = 0, panY = 0, zoom = 1, url = '127.0.0.1:8787 · 摸鱼瞳监控台', accent = C.blue2, dur = 0.5, view = null } = o;
+  const { panX = 0, panY = 0, zoom = 1, url = '127.0.0.1:8787 · 群崽监控台', accent = C.blue2, dur = 0.5, view = null } = o;
   const p = clamp01((t - at) / dur);
   if (p <= 0) return null;
   const sc = 0.94 + 0.06 * backOut(p);
@@ -488,7 +488,7 @@ function renderAt(t) {
     }
     // 结论
     slam('这些问题', W / 2, 316, { t, at: 5.6, size: 58, color: C.dim, dur: 0.3 });
-    slam('摸鱼瞳一个人全包了', W / 2, 412, { t, at: 6.0, size: 72, color: C.white, dur: 0.34 });
+    slam('群崽一个人全包了', W / 2, 412, { t, at: 6.0, size: 72, color: C.white, dur: 0.34 });
 
     buildBars(t, 6.2, 8.0, C.cyan);
     if (t > 6.4) {
@@ -537,8 +537,8 @@ function renderAt(t) {
       rrect(-s / 2, -s / 2, s, s, rr); ctx.stroke();
       ctx.restore();
     }
-    slam('摸鱼瞳', W / 2, 392, { t, at: T_HERO + 0.22, size: 92, color: C.white, dur: 0.36 });
-    txt('MoYuTong', W / 2, 436, { size: 24, weight: 700, color: C.blue2, align: 'center', font: MONO, ls: 5, alpha: easeOut(seg(t, T_HERO + 0.45, T_HERO + 0.75)) });
+    slam('群崽', W / 2, 392, { t, at: T_HERO + 0.22, size: 92, color: C.white, dur: 0.36 });
+    txt('QunZai', W / 2, 436, { size: 24, weight: 700, color: C.blue2, align: 'center', font: MONO, ls: 5, alpha: easeOut(seg(t, T_HERO + 0.45, T_HERO + 0.75)) });
     slam('你 QQ 背后的 AI 搭子', W / 2, 498, { t, at: T_HERO + 0.55, size: 34, color: C.amber, dur: 0.3 });
     const cs = [['免 API Key', C.mint], ['0 元', C.amber], ['本地跑', C.blue2], ['零依赖', C.cyan]];
     ctx.font = `800 19px ${FONT}`;
@@ -576,7 +576,7 @@ function renderAt(t) {
       let view = lerpView({ x: 10, y: 100, w: 740, h: 397 }, { x: 390, y: 100, w: 740, h: 397 }, pan);
       view = lerpView(view, { x: 0, y: 0, w: 1440, h: 773 }, out);
       const card = winCard(SHOTS.overview, 150, 92, 980, 552, t, T_PANEL, {
-        view, url: '127.0.0.1:8787 · 摸鱼瞳监控台', accent: C.blue2,
+        view, url: '127.0.0.1:8787 · 群崽监控台', accent: C.blue2,
       });
       if (card && card.rect) {
         highlight(card.rect(RR.cardQqMain), C.mint, t, 10.3, '');
@@ -707,7 +707,7 @@ function renderAt(t) {
   if (t < T_CTA) {
     slam('为什么值得试', W / 2, 118, { t, at: T_PERK + 0.05, size: 54, color: C.white, dur: 0.3 });
     const perks = [
-      ['145 KB', '安装包 · 双击即用', C.cyan],
+      ['126 KB', '安装包 · 双击即用', C.cyan],
       ['0 元', '网页版直连，不用 API Key', C.amber],
       ['本地', '数据只在你电脑上', C.mint],
       ['零依赖', '不用装任何第三方库', C.blue2],
@@ -772,13 +772,13 @@ function renderAt(t) {
       rrect(-s / 2, -s / 2, s, s, rr); ctx.stroke();
       ctx.restore();
     }
-    slam('摸鱼瞳 MoYuTong', W / 2, 262, { t, at: T_CTA + 0.2, size: 60, color: C.white, dur: 0.34 });
+    slam('群崽 QunZai', W / 2, 262, { t, at: T_CTA + 0.2, size: 60, color: C.white, dur: 0.34 });
     slam('你 QQ 背后的 AI 搭子 · 现在就试试', W / 2, 312, { t, at: T_CTA + 0.5, size: 28, color: C.amber, dur: 0.3, stroke: false });
 
     const links = [
-      ['官网下载', 'blushhorizon.github.io/MoYuTong', C.cyan],
-      ['开源仓库', 'github.com/BlushHorizon/MoYuTong', C.blue2],
-      ['交流群', '1128593359 · 暗号 moyutong520', C.pink],
+      ['官网下载', 'blushhorizon.github.io/QunZai', C.cyan],
+      ['开源仓库', 'github.com/BlushHorizon/QunZai', C.blue2],
+      ['交流群', '1128593359 · 暗号 qunzai520', C.pink],
     ];
     links.forEach(([k, v, c], i) => {
       const at = T_CTA + 0.8 + i * 0.38;

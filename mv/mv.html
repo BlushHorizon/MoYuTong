@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<title>摸鱼瞳 MoYuTong · MV</title>
+<title>群崽 QunZai · MV</title>
 <style>
   html, body { margin: 0; background: #05070d; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { box-shadow: 0 0 80px rgba(53, 200, 255, .18); }
@@ -19,7 +19,7 @@
 <audio id="au" src="out/music.wav"></audio>
 <script>
 'use strict';
-/* 摸鱼瞳 MV —— canvas 2D 确定性渲染：renderAt(t) 画第 t 秒，导出视频用离格渲染 */
+/* 群崽 MV —— canvas 2D 确定性渲染：renderAt(t) 画第 t 秒，导出视频用离格渲染 */
 const W = 1280, H = 720;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -145,15 +145,15 @@ const CHAT = [
 function sceneIntro(t) {
   gridFloor(t, 0.2);
   const p = seg(t, 0.3, 1.6);
-  glitch('摸鱼瞳 MoYuTong', W / 2, 270, 96, TXT, 1, (1 - ease(seg(t, 0.3, 2.6))) * 1.0);
-  glowText('MOYUTONG', W / 2, 360, 30, CY, { alpha: ease(seg(t, 1.0, 2.4)), glow: 20, font: 'Consolas, monospace', weight: 600 });
+  glitch('群崽 QunZai', W / 2, 270, 96, TXT, 1, (1 - ease(seg(t, 0.3, 2.6))) * 1.0);
+  glowText('QUNZAI', W / 2, 360, 30, CY, { alpha: ease(seg(t, 1.0, 2.4)), glow: 20, font: 'Consolas, monospace', weight: 600 });
   glowText('你 QQ 背后的 AI 搭子', W / 2, 440, 34, DIM, { alpha: ease(seg(t, 2.0, 3.4)), glow: 8, weight: 500 });
   mono('LOCAL · PRIVATE · FREE', W / 2, 520, 16, '#4f6a8a', ease(seg(t, 2.6, 3.8)));
 }
 
 function sceneVerse1(t) {
   gridFloor(t, 0.1);
-  glowText('摸鱼瞳 MoYuTong', W / 2, 60, 26, DIM, { alpha: 0.5 });
+  glowText('群崽 QunZai', W / 2, 60, 26, DIM, { alpha: 0.5 });
   // 左侧实时日志（全部虚构账号与群名）
   const logLines = [
     '[14:04:42] [消息] 收到 群[星河生存服] 夜见: <图片x2>',
@@ -201,7 +201,7 @@ function scenePre(t) {
   rr(bx + 24, by + 56, bw - 48, bh - 130, 10); ctx.fillStyle = 'rgba(16,26,42,.9)'; ctx.fill();
   mono('你是 MC 机器人，专管《我的世界》探索、机制、指令和故障～', bx + 44, by + 92, 16, '#8fb4d8', 1, 'left', bw - 88);
   mono('（用户）码, 更新', bx + 44, by + 132, 16, TXT, 1, 'left', bw - 88);
-  mono('（摸鱼瞳）收到～正在看代码…', bx + 44, by + 170, 16, '#9adfff', 1, 'left', bw - 88);
+  mono('（群崽）收到～正在看代码…', bx + 44, by + 170, 16, '#9adfff', 1, 'left', bw - 88);
   // 输入框 + 打字光标
   const typed = Math.floor((t - 13.6) * 14);
   const msg = '这个报错怎么修？'.slice(0, clamp01(typed / 14) * 14);
@@ -339,9 +339,9 @@ function sceneOutro(t) {
   ctx.fillStyle = 'rgba(16,28,46,.96)'; ctx.strokeStyle = CY; ctx.lineWidth = 2;
   ctx.shadowColor = 'rgba(53,200,255,.5)'; ctx.shadowBlur = 24;
   rr(-150, -90, 300, 180, 16); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
-  mono('摸鱼瞳MoYuTong', 0, -30, 26, TXT, 1, 'center', 260);
+  mono('群崽QunZai', 0, -30, 26, TXT, 1, 'center', 260);
   mono('安装包.exe', 0, 4, 22, CY, 1, 'center', 260);
-  mono('145 KB · 双击即用', 0, 48, 15, DIM, 1, 'center', 260);
+  mono('126 KB · 双击即用', 0, 48, 15, DIM, 1, 'center', 260);
   ctx.restore();
   // 冲击环
   if (t > 34.4 && t < 35.1) {
@@ -353,7 +353,7 @@ function sceneOutro(t) {
   }
   // 收尾标题
   const fin = seg(t, 34.8, 35.6);
-  glowText('摸鱼瞳 MoYuTong', W / 2, 620, 44, TXT, { alpha: ease(fin), glow: 26, maxW: W - 120 });
+  glowText('群崽 QunZai', W / 2, 620, 44, TXT, { alpha: ease(fin), glow: 26, maxW: W - 120 });
   mono('deepseek-web —— 你 QQ 背后的 AI 搭子', W / 2, 664, 16, DIM, ease(fin) * 0.9, 'center', W - 120);
 }
 

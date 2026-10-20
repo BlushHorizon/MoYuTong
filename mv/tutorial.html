@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<title>摸鱼瞳 MoYuTong · 上手教程</title>
+<title>群崽 QunZai · 上手教程</title>
 <style>
   html, body { margin: 0; background: #05070d; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { box-shadow: 0 0 80px rgba(47, 123, 255, .16); }
@@ -19,7 +19,7 @@
 <script src="shots/rects.js"></script>
 <script>
 'use strict';
-/* 摸鱼瞳 上手教程 MV —— 真实界面截图 + 步骤讲解
+/* 群崽 上手教程 MV —— 真实界面截图 + 步骤讲解
    渲染约定与品牌 MV 一致：renderAt(t) 定格渲染，?cap=1 抓帧模式 */
 const W = 1280, H = 720;
 const cv = document.getElementById('cv');
@@ -47,7 +47,7 @@ const ready = Promise.all(Object.entries(SHOTS).map(([k, src]) => {
 
 /* 头像 + 表情包示例（一次性预加载，别在渲染循环里 new Image） */
 const LOGO = new Image();
-LOGO.src = '../site/assets/moyutong-avatar-640.png';
+LOGO.src = '../site/assets/qunzai-avatar-640.png';
 const TRIO = ['../site/assets/stk1.jpg', '../site/assets/stk4.jpg', '../site/assets/stk2.jpg']
   .map((src) => { const im = new Image(); im.src = src; return im; });
 ready.then(() => {
@@ -201,7 +201,7 @@ function topbar(title, prog, alpha = 1) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(6, 10, 18, 0.72)';
   ctx.fillRect(0, 0, W, 46);
-  txt('摸鱼瞳 MoYuTong · 上手教程', 40, 30, { size: 16, weight: 600, color: TXT });
+  txt('群崽 QunZai · 上手教程', 40, 30, { size: 16, weight: 600, color: TXT });
   txt(title, W - 40, 30, { size: 15, weight: 400, color: DIM, align: 'right' });
   ctx.fillStyle = 'rgba(255,255,255,0.10)';
   ctx.fillRect(0, 44, W, 2);
@@ -271,7 +271,7 @@ function renderAt(t) {
       const s = 150 * (0.92 + 0.08 * ease(seg(t, 0.2, 1.6)));
       ctx.drawImage(LOGO, W / 2 - s / 2, 176 - (1 - p) * 20, s, s);
     }
-    txt('摸鱼瞳 MoYuTong', W / 2, 392, { size: 54, weight: 700, color: TXT, align: 'center' });
+    txt('群崽 QunZai', W / 2, 392, { size: 54, weight: 700, color: TXT, align: 'center' });
     txt('你 QQ 背后的 AI 搭子', W / 2, 436, { size: 22, weight: 400, color: BLUE2, align: 'center' });
     // 分隔线
     ctx.strokeStyle = 'rgba(106,164,255,0.4)';
@@ -304,13 +304,13 @@ function renderAt(t) {
       if (cx > dx + dw - 10) {
         ctx.fillStyle = 'rgba(8, 14, 26, 0.96)'; rrect(cx, cy, 288, 96, 12); ctx.fill();
         ctx.strokeStyle = 'rgba(106,164,255,0.4)'; ctx.lineWidth = 1; rrect(cx, cy, 288, 96, 12); ctx.stroke();
-        txt('摸鱼瞳MoYuTong安装包.exe', cx + 20, cy + 36, { size: 16, weight: 600, color: TXT });
-        txt('145 KB · Windows', cx + 20, cy + 60, { size: 13, weight: 400, color: DIM });
+        txt('群崽QunZai安装包.exe', cx + 20, cy + 36, { size: 16, weight: 600, color: TXT });
+        txt('126 KB · Windows', cx + 20, cy + 60, { size: 13, weight: 400, color: DIM });
         ctx.fillStyle = BLUE; rrect(cx + 20, cy + 72, 228 * p, 5, 3); ctx.fill();
       }
       ctx.restore();
     }
-    caption(1, '下载安装', '官网点「立即下载」，双击安装；默认装到 D:\\摸鱼瞳，覆盖安装不丢数据', a);
+    caption(1, '下载安装', '官网点「立即下载」，双击安装；默认装到 D:\\群崽，覆盖安装不丢数据', a);
     drawDots(t);
     return;
   }
@@ -320,7 +320,7 @@ function renderAt(t) {
     const a = stepAlpha(t, 15, 23);
     stepShot(IMGS.overview, 'overview', 'cardQqMain', 'QQ 已连接', 200, t);
     ctx.save(); ctx.globalAlpha = a;
-    txt('双击桌面「摸鱼瞳-开启」', FRAME.x + 300, FRAME.y + 84, { size: 20, weight: 600, color: TXT });
+    txt('双击桌面「群崽-开启」', FRAME.x + 300, FRAME.y + 84, { size: 20, weight: 600, color: TXT });
     txt('面板会自动打开 http://127.0.0.1:8787', FRAME.x + 300, FRAME.y + 116, { size: 15, weight: 400, color: DIM });
     ctx.restore();
     caption(2, '启动服务', '双击「开启.bat」或桌面快捷方式，浏览器自动打开监控台', a);
@@ -437,12 +437,12 @@ function renderAt(t) {
   ctx.fillStyle = 'rgba(4,6,12,0.82)';
   ctx.fillRect(0, 0, W, H);
   if (LOGO.naturalWidth) ctx.drawImage(LOGO, W / 2 - 70, 96, 140, 140);
-  txt('搞定了，开始摸鱼', W / 2, 300, { size: 40, weight: 700, color: TXT, align: 'center' });
-  txt('官网（含在线下载）  blushhorizon.github.io/MoYuTong', W / 2, 356, { size: 17, weight: 400, color: DIM, align: 'center' });
-  txt('源码  github.com/BlushHorizon/MoYuTong', W / 2, 388, { size: 17, weight: 400, color: DIM, align: 'center' });
+  txt('搞定了，开始热场', W / 2, 300, { size: 40, weight: 700, color: TXT, align: 'center' });
+  txt('官网（含在线下载）  blushhorizon.github.io/QunZai', W / 2, 356, { size: 17, weight: 400, color: DIM, align: 'center' });
+  txt('源码  github.com/BlushHorizon/QunZai', W / 2, 388, { size: 17, weight: 400, color: DIM, align: 'center' });
   ctx.strokeStyle = 'rgba(106,164,255,0.3)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(W / 2 - 200, 424); ctx.lineTo(W / 2 + 200, 424); ctx.stroke();
-  txt('QQ 群 1128593359 · 入群暗号 moyutong520', W / 2, 466, { size: 19, weight: 600, color: BLUE2, align: 'center' });
+  txt('QQ 群 1128593359 · 入群暗号 qunzai520', W / 2, 466, { size: 19, weight: 600, color: BLUE2, align: 'center' });
   txt('本地运行 · 免 API Key · 数据只在你自己的机器上', W / 2, 508, { size: 14, weight: 400, color: '#5c6c84', align: 'center' });
   ctx.restore();
   drawDots(t);
