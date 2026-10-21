@@ -19,15 +19,41 @@ const { EventEmitter } = require('events');
 
 /* ============================ 公共工具 ============================ */
 
-function normalizeText(raw) {
+function textFromSegments(segments) {
+  let text = '';
+  for (const seg of Array.isArray(segments) ? segments : []) {
+    if (seg && seg.type === 'text' && seg.data) text += String(seg.data.text || '');
+  }
+  return text.replace(/\[CQ:[^\]]+\]/g, '').trim();
+}
+
+function normalizeText(raw, message) {
+  // 兼容两种上报格式：CQ 码字符串，以及 OneBot 消息段数组。
+  // 后者如果直接 String(array) 会得到 [object Object]，正文就丢了。
+  if (Array.isArray(message)) return textFromSegments(message);
+  if (Array.isArray(raw)) return textFromSegments(raw);
   return String(raw || '')
     .replace(/\[CQ:[^\]]+\]/g, '')
     .trim();
 }
 
-function extractMentions(raw) {
-  const m = String(raw || '').match(/\[CQ:at,[^\]]*\]/g) || [];
-  return m;
+/** 从 CQ 字符串或 OneBot 消息段里取出被 @ 的 QQ / all */
+function extractMentionIds(raw, message) {
+  const ids = [];
+  for (const seg of Array.isArray(message) ? message : []) {
+    if (seg && seg.type === 'at' && seg.data && seg.data.qq != null) {
+      ids.push(String(seg.data.qq));
+    }
+  }
+  const re = /\[CQ:at,[^\]]*?qq=([^,\]]+)/g;
+  let m;
+  while ((m = re.exec(String(raw || '')))) ids.push(String(m[1]));
+  return [...new Set(ids)];
+}
+
+function mentionsMe(raw, message, selfId) {
+  const id = String(selfId || '');
+  return extractMentionIds(raw, message).some((qq) => qq === 'all' || (!!id && qq === id));
 }
 
 /* ============================ OneBot 11 适配器 ============================ */
@@ -240,7 +266,7 @@ class OneBotAdapter extends EventEmitter {
     // 自己发的消息（含自己给自己发）一律标记 self，避免 AI 自己回自己
     const self = data.post_type === 'message_sent' ||
       (!!selfId && (senderId === selfId || String(data.user_id ?? '') === selfId));
-    const senderName = data.sender?.card || data.sender?.nickname || (self ? this.self.nickname : String(data.user_id));
+    const senderName = data.sender?.card || data.sender?.nickname || (self ? (this.self?.nickname || '') : String(data.user_id));
     const raw = data.raw_message || data.message || '';
 
     const msg = {
@@ -251,11 +277,10 @@ class OneBotAdapter extends EventEmitter {
       fromId: String(data.user_id ?? ''),
       fromName: senderName,
       self,
-      text: normalizeText(raw),
+      text: normalizeText(raw, data.message),
       raw,
-      mentionsMe: /\[CQ:at,[^\]]*?(qq=|all)/.test(raw) ||
-        (isGroup ? /@/.test(raw) : false),
-      mentions: extractMentions(raw).length,
+      mentionsMe: mentionsMe(raw, data.message, selfId),
+      mentions: extractMentionIds(raw, data.message).length,
       images: extractImages(raw, data.message),
       stickers: extractStickers(raw, data.message),
       time: Date.now()

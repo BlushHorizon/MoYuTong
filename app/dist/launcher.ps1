@@ -12,6 +12,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $port = 8787
+# 允许高级用户改 config.json 的 server.port；启动器/停止脚本跟着走，避免开错页面或杀错进程
+try {
+    $cfgPath = Join-Path $root 'config.json'
+    if (Test-Path $cfgPath) {
+        $cfg = Get-Content -Path $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($cfg.server -and $cfg.server.port) { $port = [int]$cfg.server.port }
+    }
+} catch { }
 $url = "http://127.0.0.1:$port"
 $logDir = Join-Path $root 'data'
 $logFile = Join-Path $logDir 'server.log'
@@ -68,28 +76,44 @@ function Test-Port([int]$p) {
     }
 }
 
+function Test-QunZai {
+    # 端口通不代表就是群崽：必须能拿到 /api/status 才认，避免把别的程序当成本服务
+    try {
+        $resp = Invoke-WebRequest -Uri "$url/api/status" -UseBasicParsing -TimeoutSec 3
+        return ($resp.StatusCode -eq 200 -and $resp.Content -match '"qq"')
+    } catch {
+        return $false
+    }
+}
+
 # ---------- 停止服务 ----------
 if ($Stop) {
     # 1) 先写停止标记：守护循环看到标记就彻底退出、不再拉起
     try { New-Item -ItemType Directory -Force -Path $logDir | Out-Null } catch { }
     try { [System.IO.File]::WriteAllText($stopFlag, (Get-Date -Format 'o')) } catch { }
     $killed = 0
-    # 2) 按监听端口找进程（最可靠）
+    # 2) 按监听端口找进程（最可靠）；只结束确认是群崽的 node 进程
     try {
-        $line = netstat -ano | Select-String '127\.0\.0\.1:8787' | Select-String 'LISTENING' | Select-Object -First 1
+        $line = netstat -ano | Select-String ('127\.0\.0\.1:' + $port) | Select-String 'LISTENING' | Select-Object -First 1
         if ($line) {
             $portPid = ($line -split '\s+')[-1]
             if ($portPid -and $portPid -match '^\d+$') {
-                Stop-Process -Id ([int]$portPid) -Force -ErrorAction SilentlyContinue
-                $killed++
+                $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$portPid" -ErrorAction SilentlyContinue
+                $cmd = if ($procInfo) { [string]$procInfo.CommandLine } else { '' }
+                if ($cmd -match 'server[\\/]server\.js') {
+                    Stop-Process -Id ([int]$portPid) -Force -ErrorAction SilentlyContinue
+                    $killed++
+                } else {
+                    Write-Host "端口 $port 被其他程序占用（PID $portPid），没有结束它。" -ForegroundColor Yellow
+                }
             }
         }
     } catch { }
     Start-Sleep -Milliseconds 500
-    # 3) 兜底：命令行里带 server.js 的 node 进程
+    # 3) 兜底：只找本程序目录下 server\server.js 的 node 进程
     try {
         Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -like '*server.js*' } |
+            Where-Object { $_.CommandLine -and $_.CommandLine -match 'server[\\/]server\.js' } |
             ForEach-Object {
                 Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
                 $killed++
@@ -105,12 +129,24 @@ if ($Stop) {
 # ---------- Node 环境检查 ----------
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
-    Show-Msg "未检测到 Node.js。`n`n请先安装 Node.js 18 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新双击本快捷方式。" '缺少 Node.js'
+    Show-Msg "未检测到 Node.js。`n`n请先安装 Node.js 22 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新双击本快捷方式。" '缺少 Node.js'
+    exit 1
+}
+$nodeVersion = ''
+try { $nodeVersion = (& $node.Source -v 2>$null | Select-Object -First 1) } catch { }
+$nodeMajor = 0
+if ($nodeVersion -match '^v(\d+)\.') { $nodeMajor = [int]$Matches[1] }
+if ($nodeMajor -lt 22) {
+    Show-Msg "当前 Node.js 版本为 $nodeVersion，版本过低。`n`n群崽需要 Node.js 22 或更高版本（用到内置 WebSocket），请升级后重试：`nhttps://nodejs.org/" 'Node.js 版本过低'
     exit 1
 }
 
 # ---------- 服务已在运行则直接开网页 ----------
 if (Test-Port $port) {
+    if (-not (Test-QunZai)) {
+        Show-Msg "端口 $port 已被其他程序占用，但看起来不是群崽。`n`n请关闭占用该端口的程序，或修改 config.json 里的 server.port 后重试。" '端口被占用'
+        exit 1
+    }
     if (-not $NoBrowser) { Open-PanelOnce $url }
     if ($LiveConsole) {
         try { $Host.UI.RawUI.WindowTitle = 'QunZai' } catch { }
@@ -132,7 +168,7 @@ if (-not $NoBrowser) { Open-PanelOnce $url }
 
 if ($LiveConsole) {
     # 实时控制台模式：本窗口就是程序 —— 日志直接滚动，关掉窗口 = 停止服务
-    try { $Host.UI.RawUI.WindowTitle = 'QunZai ' + [char]0x6478 + [char]0x9C7C + [char]0x77B3 + ' ' + [char]0x65E5 + [char]0x5FD7 } catch { }
+    try { $Host.UI.RawUI.WindowTitle = '群崽 QunZai 日志' } catch { }
     Write-Host ''
     Write-Host ('  群崽 QunZai 已启动 · ' + (Get-Date -Format 'HH:mm:ss')) -ForegroundColor Green
     Write-Host '  关闭本窗口 = 停止服务；也可用「关闭」停止。'
@@ -174,6 +210,10 @@ while ($true) {
     }
     # 进程意外退出 → 提示并 3 秒后自动重启（防抽风）
     $exitCode = $proc.ExitCode
+    if ($exitCode -eq 2) {
+        Show-Msg "服务启动失败：端口 $port 已被其他程序占用。`n`n请关闭占用该端口的程序，或修改 config.json 里的 server.port 后重新启动。" '端口被占用'
+        exit 2
+    }
     if ($exitCode -eq -1073741510) {
         # 0xC000013A = 控制台关闭 / Ctrl+C 信号 —— 用户主动关停，守护同步退出，不复活
         try {

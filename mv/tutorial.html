@@ -350,7 +350,7 @@ function renderAt(t) {
     stepShot(IMGS.stickers, 'stickers', 'setMode', 'QQ 接入', 220, t);
     ctx.save(); ctx.globalAlpha = a;
     txt('启动任意 OneBot 11 机器人端（NapCat / SnowLuma 等）', 140, 128, { size: 19, weight: 600, color: TXT });
-    txt('面板里填 WS 地址 ws://127.0.0.1:3001 → 保存 → 重启服务', 140, 160, { size: 15, weight: 400, color: DIM });
+    txt('面板里填 WS 地址 ws://127.0.0.1:3001 → 保存 → 自动重连', 140, 160, { size: 15, weight: 400, color: DIM });
     ctx.restore();
     caption(4, '接上 QQ', 'OneBot 11 接入，面板填 WS 地址；连上后左上角显示「已连接」', a);
     drawDots(t);

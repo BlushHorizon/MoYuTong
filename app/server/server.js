@@ -185,7 +185,7 @@ const deepseek = new DeepSeekWeb({
   port: cfg.ai?.cdpPort || 9222,
   profileDir: path.join(ROOT, 'data', 'deepseek_profile'),
   browserPath: cfg.ai?.browserPath || '',
-  site: cfg.ai?.webProvider || 'deepseek',   // 网页版站点：deepseek / qianwen / kimi / mimo
+  site: cfg.ai?.webProvider || 'deepseek',   // 网页版站点：当前内置 deepseek
   // 提示词不在这给：等 ai 创建后统一 configure(ai._fullPrompt())——
   // 完整提示词 = 用户人设 + 【表情包能力】段，所有入口只认这一个来源
   prompt: '',
@@ -262,9 +262,19 @@ function readBody(req) {
 }
 
 function serveStatic(req, res, pathname) {
-  let rel = pathname === '/' ? '/index.html' : pathname;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    res.writeHead(400); res.end('bad request'); return;
+  }
+  if (decoded.includes('\0')) { res.writeHead(400); res.end('bad request'); return; }
+  const rel = decoded === '/' ? '/index.html' : decoded;
   const file = path.join(PUBLIC_DIR, path.normalize(rel).replace(/^([\\/])+/, ''));
-  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end('forbidden'); return; }
+  const relative = path.relative(PUBLIC_DIR, file);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    res.writeHead(403); res.end('forbidden'); return;
+  }
   fs.readFile(file, (err, buf) => {
     if (err) {
       // 单页应用兜底
@@ -460,7 +470,9 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/mock/incoming' && req.method === 'POST') {
-    if (cfg.qq.mode !== 'mock') return sendJson(res, 400, { error: '非演示模式' });
+    if (configLib.get().qq?.mode !== 'mock' || typeof adapter.simulateIncoming !== 'function') {
+      return sendJson(res, 400, { error: '非演示模式' });
+    }
     const body = await readBody(req);
     const chat = store.chats.get(body.chatId);
     adapter.simulateIncoming(chat?.type || 'private', chat?.targetId || body.chatId || '10001');
@@ -609,6 +621,16 @@ const server = http.createServer((req, res) => {
     return;
   }
   serveStatic(req, res, url.pathname);
+});
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`[启动失败] 端口 ${cfg.server.port} 已被其他程序占用。`);
+    console.error('请关闭占用该端口的程序，或修改 config.json 里的 server.port 后重新启动。');
+    process.exit(2);
+  }
+  console.error('[启动失败]', err && err.message ? err.message : err);
+  process.exit(1);
 });
 
 server.listen(cfg.server.port, cfg.server.host, () => {

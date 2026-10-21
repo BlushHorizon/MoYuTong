@@ -35,10 +35,33 @@ function checkJsonConfig(rel) {
   const tk = cfg?.ai?.targetChatKey;
   if (typeof tk === 'string' && tk.trim()) fail('ai.targetChatKey', `含真实会话目标 ${JSON.stringify(tk).slice(0, 24)}…`);
 
+  // 多选目标同样会暴露私聊 QQ / 群号；旧检查只看了单选字段 targetChatKey
+  const tks = cfg?.ai?.targetChatKeys;
+  if (Array.isArray(tks) && tks.length) {
+    fail('ai.targetChatKeys', `含 ${tks.length} 个真实会话目标 ${JSON.stringify(tks).slice(0, 32)}…`);
+  } else if (typeof tks === 'string' && tks.trim()) {
+    fail('ai.targetChatKeys', `不是数组且非空 ${JSON.stringify(tks).slice(0, 24)}…`);
+  }
+
+  // wsUrl 里附带的 access_token 也会随配置泄漏
+  const ws = cfg?.qq?.onebot?.wsUrl;
+  if (typeof ws === 'string') {
+    const m = ws.match(/[?&](?:access_token|token)=([^&]+)/i);
+    if (m) {
+      let v = m[1];
+      try { v = decodeURIComponent(v); } catch { /* 原样判断 */ }
+      if (v && !PLACEHOLDER.test(v)) fail('qq.onebot.wsUrl', `URL 查询参数含明文令牌 ${JSON.stringify(v).slice(0, 24)}…`);
+    }
+  }
+
   /* 任意字段里出现 11 位 QQ/手机号，或 group:数字，或私人域名 */
   const raw = fs.readFileSync(p, 'utf8');
   const m11 = raw.match(/\b1[3-9]\d{9}\b/);
   if (m11) fail('(全文)', `疑似真实 QQ/手机号 ${m11[0]}`);
+  // 很多 QQ（包括机器人号）是 10 位，旧的 11 位规则会漏掉；配置 JSON 里
+  // 除了端口/轮次等短数字，不应出现完整的 10 位账号。
+  const m10 = raw.match(/\b[1-9]\d{9}\b/);
+  if (m10) fail('(全文)', `疑似 10 位 QQ ${m10[0]}`);
   const mg = raw.match(/\bgroup:\d{6,}\b/);
   if (mg) fail('(全文)', `疑似真实群号 ${mg[0]}`);
   const md = raw.match(/\b[a-z0-9][a-z0-9-]{2,}\.(top|xyz|cc|vip|cn)\b/);

@@ -28,6 +28,7 @@ VIAddVersionKey /LANG=0 "ProductName" "${APPNAME}"
 VIAddVersionKey /LANG=0 "FileDescription" "群崽 QunZai 安装程序"
 VIAddVersionKey /LANG=0 "FileVersion" "1.0.0.0"
 VIAddVersionKey /LANG=0 "CompanyName" "QunZai"
+VIAddVersionKey /LANG=0 "LegalCopyright" "Copyright (c) 2026 QunZai contributors"
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -42,14 +43,15 @@ VIAddVersionKey /LANG=0 "CompanyName" "QunZai"
 
 Section "主程序" SecMain
   SetOutPath "$INSTDIR"
+  File "..\LICENSE"
 
-  ; ---------- Node.js 检测 ----------
-  nsExec::ExecToStack 'cmd /c node -v'
+  ; ---------- Node.js 检测（22+；网页驱动依赖内置 WebSocket） ----------
+  nsExec::ExecToStack 'cmd /c node -e "process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)"'
   Pop $0
   Pop $1
   StrCmp $0 "0" nodeOk 0
   MessageBox MB_ICONEXCLAMATION|MB_YESNO \
-    "未检测到 Node.js（本程序需要 Node.js 18+ 才能运行）。$\r$\n建议先到 https://nodejs.org 安装 LTS 版，再安装本程序。$\r$\n仍要继续安装吗？" \
+    "未检测到 Node.js 22+（本程序需要 Node.js 22 或更高版本才能运行）。$\r$\n建议先到 https://nodejs.org 安装 LTS 版，再安装本程序。$\r$\n仍要继续安装吗？" \
     IDYES nodeOk
   Abort
   nodeOk:

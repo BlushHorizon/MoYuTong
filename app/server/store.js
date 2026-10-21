@@ -108,33 +108,46 @@ class Store {
     return chat;
   }
 
+  _touchChat(msg) {
+    const chat = this.ensureChat(msg.chatType, msg.chatId, msg.chatName);
+    if (msg.text) chat.lastText = msg.text;
+    chat.lastTime = msg.time || Date.now();
+    return chat;
+  }
+
   addMessage(msg) {
     const key = this.chatKey(msg.chatType, msg.chatId);
     if (!this.messages.has(key)) this.messages.set(key, []);
     const arr = this.messages.get(key);
     // 去重：同一 chat 下相同 id 只留一条
-    if (msg.id && arr.some((m) => m.id === msg.id)) {
+    if (msg.id) {
       const exist = arr.find((m) => m.id === msg.id);
-      Object.assign(exist, msg);
-      return exist;
+      if (exist) {
+        Object.assign(exist, msg);
+        this._touchChat(msg);
+        this.scheduleSave();
+        return exist;
+      }
     }
-    arr.push(msg);
-    // 去重：3 秒内相同内容、相同发送者的消息只保留一条
+    // 去重：3 秒内相同内容、相同发送者的消息只保留一条。
+    // 必须在 push 之前查，否则会匹配到刚 push 的自己；也不能把本次消息
+    // 留在数组里，否则重复 ID 会污染历史记录。
     // （OneBot 实现可能同时回报动作响应与事件，或本地已先做乐观回显）
     const tail = arr.slice(-4);
     const dup = tail.find((m) =>
-      m.chatType === msg.chatType && m.chatId === msg.chatId &&
+      !!msg.text && m.chatType === msg.chatType && m.chatId === msg.chatId &&
       m.self === msg.self && m.text === msg.text &&
       Math.abs((m.time || 0) - (msg.time || 0)) < 3000
     );
     if (dup) {
       Object.assign(dup, msg);
+      this._touchChat(msg);
+      this.scheduleSave();
       return dup;
     }
+    arr.push(msg);
     if (arr.length > MAX_MESSAGES_PER_CHAT) arr.splice(0, arr.length - MAX_MESSAGES_PER_CHAT);
-    const chat = this.ensureChat(msg.chatType, msg.chatId, msg.chatName);
-    chat.lastText = msg.text || chat.lastText;
-    chat.lastTime = msg.time || Date.now();
+    this._touchChat(msg);
     this.scheduleSave();
     return msg;
   }

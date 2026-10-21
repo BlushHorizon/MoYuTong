@@ -42,7 +42,13 @@ async function api(path, options) {
     headers: { 'Content-Type': 'application/json' },
     ...options
   });
-  return resp.json();
+  let data = null;
+  try { data = await resp.json(); } catch { /* 非 JSON 错误页 */ }
+  if (!resp.ok) {
+    const msg = (data && (data.error || data.message)) || `HTTP ${resp.status}`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 function chatLabel(chatId) {
@@ -396,7 +402,11 @@ async function saveSettings() {
       }
     }
   };
-  const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) });
+  const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) }).catch((e) => {
+    alert('保存失败：' + e.message);
+    return null;
+  });
+  if (!resp) return;
   $('settingsModal').classList.add('hidden');
   await refreshStatus();
   /* QQ 接入参数变了 → 服务端已自动重建适配器重连，明确告知，免得以为改了没生效 */
@@ -489,15 +499,22 @@ function connectEvents() {
 
 /* ---------------- 初始化 ---------------- */
 function init() {
-  $('btnSettings').addEventListener('click', openSettings);
+  $('btnSettings').addEventListener('click', () => {
+    openSettings().catch((e) => alert('读取设置失败：' + e.message));
+  });
   $('btnSaveSettings').addEventListener('click', saveSettings);
   $('setProvider').addEventListener('change', () => { toggleProviderView(); refreshDsStatus(); });
   $('setReplyMode').addEventListener('change', toggleTargetView);
   $('btnDsOpen').addEventListener('click', async (e) => {
     e.target.textContent = '启动中…';
-    await api('/api/ai/deepseek/open', { method: 'POST' });
-    setTimeout(refreshDsStatus, 2500);
-    e.target.textContent = '① 打开浏览器并登录';
+    try {
+      await api('/api/ai/deepseek/open', { method: 'POST' });
+      setTimeout(refreshDsStatus, 2500);
+    } catch (err) {
+      alert('打开失败：' + err.message);
+    } finally {
+      e.target.textContent = '① 打开浏览器并登录';
+    }
   });
   $('btnDsNew').addEventListener('click', async (e) => {
     e.target.textContent = '处理中…';
@@ -519,8 +536,13 @@ function init() {
     }
   });
   $('aiToggle').addEventListener('change', async (e) => {
-    await api('/api/ai/toggle', { method: 'POST', body: JSON.stringify({ enabled: e.target.checked }) });
-    await refreshStatus();
+    try {
+      await api('/api/ai/toggle', { method: 'POST', body: JSON.stringify({ enabled: e.target.checked }) });
+      await refreshStatus();
+    } catch (err) {
+      e.target.checked = !e.target.checked;
+      alert('切换失败：' + err.message);
+    }
   });
   document.querySelectorAll('[data-close]').forEach((b) => {
     b.addEventListener('click', () => $(b.dataset.close).classList.add('hidden'));
@@ -534,11 +556,11 @@ function init() {
   $('btnStickerClear').addEventListener('click', clearStickers);
   $('btnWebOpen').addEventListener('click', openWebSite);
 
-  refreshStatus();
-  refreshChats();
+  refreshStatus().catch(() => {});
+  refreshChats().catch(() => {});
   connectEvents();
-  setInterval(refreshStatus, 15000);
-  setInterval(refreshChats, 30000);
+  setInterval(() => refreshStatus().catch(() => {}), 15000);
+  setInterval(() => refreshChats().catch(() => {}), 30000);
 }
 
 init();
