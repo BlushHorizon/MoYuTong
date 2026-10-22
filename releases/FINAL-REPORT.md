@@ -8,8 +8,8 @@
 | 项目 | 值 |
 |---|---|
 | 文件 | `群崽QunZai安装包-v1.4.0.exe` |
-| 大小 | 343,754 B / 335.7 KB |
-| SHA256 | `841b8ac4ff3be094f5a1afc7301eb03e3cf6d12d1f36b7ed7f012d7a8ed69369` |
+| 大小 | 343,880 B / 335.8 KB |
+| SHA256 | `4604041211aa008ad52adff7a50f0b5f1cb3c9076aca2978f01363d7980ca2a7` |
 | 官网下载 | https://blushhorizon.github.io/QunZai/ |
 | GitHub Releases | https://github.com/BlushHorizon/QunZai/releases |
 
@@ -20,6 +20,7 @@
 - 安装器升级时清理旧快捷方式与旧 bat 入口
 - 保留 `D:\群崽\config.json` 与 `D:\群崽\data`，覆盖安装不丢配置和聊天数据
 - 自动更新清单发布到官网 `update.json`
+- 修复旧版配置升级后自动更新地址为空：默认清单地址内置，旧配置缺字段或空字符串时自动回填
 
 ## 隐私与安装包复核
 
