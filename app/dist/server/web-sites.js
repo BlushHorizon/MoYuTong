@@ -21,7 +21,7 @@ const SITES = {
     generating: ['.ds-icon-stop', '[class*="stopButton"]', 'button[aria-label*="停止"]', '[data-testid="stop-button"]'],
     newChat: ['开启新对话'],
     chatUrlMark: '/a/chat/s/',
-    navigateFallback: false,  // “开启新对话”按钮点击已验证可靠
+    navigateFallback: true,   // 内嵌隐藏标签页时按钮不可布局，直接导航回首页兜底
     loginWords: '登录|扫码',
     loginSelectors: [],
     images: true,             // 支持看图上传（CDP 直接塞本地文件）

@@ -6,24 +6,38 @@
 param(
     [switch]$NoBrowser,
     [switch]$Stop,
-    [switch]$LiveConsole
+    [switch]$LiveConsole,
+    [int]$ServerPortOverride = 0,
+    [int]$CdpPortOverride = 0,
+    [switch]$Embedded
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $port = 8787
-# 允许高级用户改 config.json 的 server.port；启动器/停止脚本跟着走，避免开错页面或杀错进程
+$cdpPort = 9222
+# 允许高级用户改 config.json 的 server.port / ai.cdpPort；启动器/停止脚本跟着走
 try {
     $cfgPath = Join-Path $root 'config.json'
     if (Test-Path $cfgPath) {
         $cfg = Get-Content -Path $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($cfg.server -and $cfg.server.port) { $port = [int]$cfg.server.port }
+        if ($cfg.ai -and $cfg.ai.cdpPort) { $cdpPort = [int]$cfg.ai.cdpPort }
     }
 } catch { }
+# 桌面窗口 / 上层脚本可以覆盖首选端口；0 表示沿用配置
+if ($Port -gt 0) { $port = $Port }
+elseif ($env:QUNZAI_SERVER_PORT -and [int]$env:QUNZAI_SERVER_PORT -gt 0) { $port = [int]$env:QUNZAI_SERVER_PORT }
+if ($CdpPort -gt 0) { $cdpPort = $CdpPort }
+elseif ($env:QUNZAI_CDP_PORT -and [int]$env:QUNZAI_CDP_PORT -gt 0) { $cdpPort = [int]$env:QUNZAI_CDP_PORT }
+if ($Embedded -or $env:QUNZAI_EMBEDDED -eq '1') { $env:QUNZAI_EMBEDDED = '1' }
+$env:QUNZAI_SERVER_PORT = [string]$port
+$env:QUNZAI_CDP_PORT = [string]$cdpPort
 $url = "http://127.0.0.1:$port"
 $logDir = Join-Path $root 'data'
 $logFile = Join-Path $logDir 'server.log'
 $stopFlag = Join-Path $logDir '.svc_stop'
+$runtimeFile = Join-Path $logDir 'runtime.json'
 
 function Show-Msg([string]$text, [string]$title = '群崽 QunZai') {
     # 总是落日志 + 打到控制台
@@ -76,14 +90,46 @@ function Test-Port([int]$p) {
     }
 }
 
-function Test-QunZai {
+function Test-QunZaiAt([int]$p) {
     # 端口通不代表就是群崽：必须能拿到 /api/status 才认，避免把别的程序当成本服务
     try {
-        $resp = Invoke-WebRequest -Uri "$url/api/status" -UseBasicParsing -TimeoutSec 3
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$p/api/status" -UseBasicParsing -TimeoutSec 2
         return ($resp.StatusCode -eq 200 -and $resp.Content -match '"qq"')
     } catch {
         return $false
     }
+}
+
+function Read-Runtime {
+    try {
+        if (Test-Path $runtimeFile) {
+            return Get-Content -Path $runtimeFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        }
+    } catch { }
+    return $null
+}
+
+function Find-FreePort([int]$start, [int]$max = 60) {
+    for ($p = $start; $p -lt [Math]::Min(65536, $start + $max); $p++) {
+        if (-not (Test-Port $p)) { return $p }
+    }
+    return 0
+}
+
+function Wait-ForServer([int]$preferred, [int]$timeoutSec = 25) {
+    # 服务可能因为端口占用自动换端口：以 data\runtime.json 为准，再实际请求确认
+    $until = (Get-Date).AddSeconds($timeoutSec)
+    while ((Get-Date) -lt $until) {
+        $rt = Read-Runtime
+        $candidates = @()
+        if ($rt -and $rt.serverPort) { $candidates += [int]$rt.serverPort }
+        $candidates += $preferred
+        foreach ($p in ($candidates | Select-Object -Unique)) {
+            if ($p -gt 0 -and (Test-QunZaiAt $p)) { return $p }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return 0
 }
 
 # ---------- 停止服务 ----------
@@ -92,23 +138,31 @@ if ($Stop) {
     try { New-Item -ItemType Directory -Force -Path $logDir | Out-Null } catch { }
     try { [System.IO.File]::WriteAllText($stopFlag, (Get-Date -Format 'o')) } catch { }
     $killed = 0
+    $candidatePorts = @()
+    $rt = Read-Runtime
+    if ($rt -and $rt.serverPort) { $candidatePorts += [int]$rt.serverPort }
+    $candidatePorts += $port
+    for ($i = 1; $i -le 60; $i++) { $candidatePorts += ($port + $i) }
+    $candidatePorts = $candidatePorts | Where-Object { $_ -gt 0 -and $_ -le 65535 } | Select-Object -Unique
+
     # 2) 按监听端口找进程（最可靠）；只结束确认是群崽的 node 进程
-    try {
-        $line = netstat -ano | Select-String ('127\.0\.0\.1:' + $port) | Select-String 'LISTENING' | Select-Object -First 1
-        if ($line) {
+    foreach ($p in $candidatePorts) {
+        if (-not (Test-Port $p)) { continue }
+        try {
+            $line = netstat -ano | Select-String ('127\.0\.0\.1:' + $p) | Select-String 'LISTENING' | Select-Object -First 1
+            if (-not $line) { continue }
             $portPid = ($line -split '\s+')[-1]
-            if ($portPid -and $portPid -match '^\d+$') {
-                $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$portPid" -ErrorAction SilentlyContinue
-                $cmd = if ($procInfo) { [string]$procInfo.CommandLine } else { '' }
-                if ($cmd -match 'server[\\/]server\.js') {
-                    Stop-Process -Id ([int]$portPid) -Force -ErrorAction SilentlyContinue
-                    $killed++
-                } else {
-                    Write-Host "端口 $port 被其他程序占用（PID $portPid），没有结束它。" -ForegroundColor Yellow
-                }
+            if (-not ($portPid -and $portPid -match '^\d+$')) { continue }
+            $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$portPid" -ErrorAction SilentlyContinue
+            $cmd = if ($procInfo) { [string]$procInfo.CommandLine } else { '' }
+            if ($cmd -match 'server[\\/]server\.js') {
+                Stop-Process -Id ([int]$portPid) -Force -ErrorAction SilentlyContinue
+                $killed++
+            } else {
+                Write-Host "端口 $p 被其他程序占用（PID $portPid），没有结束它。" -ForegroundColor Yellow
             }
-        }
-    } catch { }
+        } catch { }
+    }
     Start-Sleep -Milliseconds 500
     # 3) 兜底：只找本程序目录下 server\server.js 的 node 进程
     try {
@@ -119,8 +173,12 @@ if ($Stop) {
                 $killed++
             }
     } catch { }
-    # 4) 等端口释放 & 守护进程退出
-    for ($i = 0; $i -lt 12; $i++) { if (-not (Test-Port $port)) { break }; Start-Sleep -Milliseconds 300 }
+    # 4) 等候选端口释放 & 守护进程退出
+    for ($i = 0; $i -lt 12; $i++) {
+        $still = @($candidatePorts | Where-Object { Test-Port $_ })
+        if ($still.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 300
+    }
     if ($killed -gt 0) { Write-Host "服务已停止（共 $killed 个进程）。" }
     else { Write-Host "没有找到正在运行的服务。" }
     exit 0
@@ -129,7 +187,7 @@ if ($Stop) {
 # ---------- Node 环境检查 ----------
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
-    Show-Msg "未检测到 Node.js。`n`n请先安装 Node.js 22 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新双击本快捷方式。" '缺少 Node.js'
+    Show-Msg "未检测到 Node.js。`n`n请先安装 Node.js 22 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新启动群崽。" '缺少 Node.js'
     exit 1
 }
 $nodeVersion = ''
@@ -142,36 +200,52 @@ if ($nodeMajor -lt 22) {
 }
 
 # ---------- 服务已在运行则直接开网页 ----------
-if (Test-Port $port) {
-    if (-not (Test-QunZai)) {
-        Show-Msg "端口 $port 已被其他程序占用，但看起来不是群崽。`n`n请关闭占用该端口的程序，或修改 config.json 里的 server.port 后重试。" '端口被占用'
-        exit 1
-    }
+$existingPort = 0
+$rt = Read-Runtime
+if ($rt -and $rt.serverPort -and [int]$rt.serverPort -gt 0 -and (Test-QunZaiAt ([int]$rt.serverPort))) {
+    $existingPort = [int]$rt.serverPort
+} elseif (Test-QunZaiAt $port) {
+    $existingPort = $port
+}
+if ($existingPort -gt 0) {
+    $port = $existingPort
+    $url = "http://127.0.0.1:$port"
     if (-not $NoBrowser) { Open-PanelOnce $url }
     if ($LiveConsole) {
         try { $Host.UI.RawUI.WindowTitle = 'QunZai' } catch { }
         Write-Host ''
-        Write-Host '  服务已在运行。' -ForegroundColor Yellow
-        Write-Host '  如需日志窗口：先双击「关闭」，再重新双击「开启」。'
+        Write-Host "  服务已在运行：$url" -ForegroundColor Yellow
+        Write-Host '  如需重启服务：在桌面窗口右上角停止服务，再点击启动服务。'
         Write-Host ''
         Start-Sleep -Seconds 5
     }
     exit 0
 }
 
+# 首选端口被别的程序占用：不弹窗、不退出，自动向后找一个空闲端口
+if (Test-Port $port) {
+    $nextPort = Find-FreePort ($port + 1)
+    if ($nextPort -le 0) {
+        Show-Msg "端口 $port 已被其他程序占用，且后面连续 60 个端口也不可用。`n`n请关闭占用端口的程序后重试。" '端口被占用'
+        exit 1
+    }
+    Write-Host "端口 $port 被占用，自动改用 $nextPort。" -ForegroundColor Yellow
+    $port = $nextPort
+}
+$env:QUNZAI_SERVER_PORT = [string]$port
+$url = "http://127.0.0.1:$port"
+
 # ---------- 清理旧的停止标记，准备守护启动 ----------
 try { Remove-Item $stopFlag -Force -ErrorAction SilentlyContinue } catch { }
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 # 日志统一由 node 侧写入 data\app.log（追加式，控制台窗口是它的实时视图），无需重定向
-
-if (-not $NoBrowser) { Open-PanelOnce $url }
 
 if ($LiveConsole) {
     # 实时控制台模式：本窗口就是程序 —— 日志直接滚动，关掉窗口 = 停止服务
     try { $Host.UI.RawUI.WindowTitle = '群崽 QunZai 日志' } catch { }
     Write-Host ''
     Write-Host ('  群崽 QunZai 已启动 · ' + (Get-Date -Format 'HH:mm:ss')) -ForegroundColor Green
-    Write-Host '  关闭本窗口 = 停止服务；也可用「关闭」停止。'
+    Write-Host '  关闭本窗口 = 停止服务。'
     Write-Host '  ------------------------------------------------------------'
 }
 
@@ -180,6 +254,7 @@ if ($LiveConsole) {
 if ($LiveConsole) {
     try { Add-Type -Namespace Wdeep -Name Native -MemberDefinition '[DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();' -ErrorAction SilentlyContinue } catch { }
 }
+$panelOpened = $false
 while ($true) {
     if ($LiveConsole) {
         try { if ([Wdeep.Native]::GetConsoleWindow() -eq [IntPtr]::Zero) { exit 0 } } catch { /* 类型未加载则跳过，13A 检测仍兜底 */ }
@@ -195,6 +270,16 @@ while ($true) {
     } catch {
         Show-Msg "启动服务失败：`n$($_.Exception.Message)" '启动失败'
         exit 1
+    }
+    # 等真实端口就绪后再开网页：服务可能因端口占用自动换端口
+    if (-not $NoBrowser -and -not $panelOpened) {
+        $actualPort = Wait-ForServer $port 25
+        if ($actualPort -gt 0) {
+            $port = $actualPort
+            $url = "http://127.0.0.1:$port"
+            Open-PanelOnce $url
+            $panelOpened = $true
+        }
     }
     # 监控：进程退出 或 收到停止标记
     while (-not $proc.HasExited) {

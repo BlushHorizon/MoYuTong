@@ -7,9 +7,45 @@
  */
 
 const $ = (id) => document.getElementById(id);
+const THEME_KEY = 'qunzai.theme';
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(theme, persist) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  const btn = $('btnTheme');
+  if (btn) {
+    btn.textContent = next === 'light' ? '☀' : '☾';
+    btn.title = next === 'light' ? '切换深色主题' : '切换浅色主题';
+  }
+  if (persist) {
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* 隐私模式忽略 */ }
+  }
+  try {
+    if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+      window.chrome.webview.postMessage({ type: 'theme', theme: next });
+    }
+  } catch (e) { /* 非桌面宿主忽略 */ }
+}
+
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* 忽略 */ }
+  applyTheme(saved === 'light' ? 'light' : 'dark', false);
+  const btn = $('btnTheme');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      applyTheme(currentTheme() === 'light' ? 'dark' : 'light', true);
+    });
+  }
+}
 
 const state = {
   status: { qq: {}, ai: {} },
+  version: '',
   chats: [],
   feed: [],
   self: null,
@@ -58,6 +94,11 @@ function chatLabel(chatId) {
 
 /* ---------------- 状态卡 ---------------- */
 function renderStatus() {
+  if (state.version) {
+    const label = 'v' + state.version;
+    if ($('appVersion')) $('appVersion').textContent = label;
+    if ($('aboutVersion')) $('aboutVersion').textContent = label;
+  }
   const qq = state.status.qq || {};
   const pill = $('qqStatusPill');
   pill.classList.toggle('on', !!qq.connected);
@@ -178,6 +219,7 @@ async function refreshChats() {
 async function refreshStatus() {
   const data = await api('/api/status');
   state.status = { qq: data.qq, ai: data.ai };
+  state.version = data.version || state.version;
   state.self = data.self;
   renderStatus();
 }
@@ -213,7 +255,17 @@ async function openSettings() {
   $('setWsUrl').value = data.qq?.onebot?.wsUrl || 'ws://127.0.0.1:3001';
   $('setToken').value = data.qq?.onebot?.accessToken || '';
   // Token 只回后 4 位；留空保存 = 清除
-  $('setToken').placeholder = data.qq?.onebot?.hasToken ? '留空 = 清除（当前已配置）' : '与 SnowLuma 里填的一致，没有就留空';
+  $('setToken').placeholder = data.qq?.onebot?.hasToken ? '留空 = 清除（当前已配置）' : '与 OneBot 运行时里填的一致，没有就留空';
+  const eng = data.qq?.engine || {};
+  $('setEngineDir').value = eng.dir || '';
+  $('setEngineAccount').value = eng.account || '';
+  $('setEngineAuto').checked = eng.autoStart !== false;
+  refreshEngineStatus();
+  const upd = data.update || {};
+  $('setUpdateManifest').value = upd.manifestUrl || '';
+  $('setUpdateAuto').checked = upd.autoCheck !== false;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.0'}，未检查`;
+  $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
   $('setReplyMode').value = ai.replyMode === 'target' ? 'target' : 'all';
@@ -339,6 +391,155 @@ function openWebSite() {
     });
 }
 
+async function refreshEngineStatus() {
+  const el = $('engineStatus');
+  if (!el) return;
+  try {
+    const r = await api('/api/engine/status');
+    const e = r.engine || {};
+    const who = e.account ? `账号 ${e.account}` : '未指定账号';
+    const where = e.dir ? `目录 ${e.dir}` : '未设置目录';
+    el.textContent = `状态：${e.running ? '运行中' : '未运行'} ｜ ${who} ｜ WS ${e.wsPort || '-'} ｜ ${where}` +
+      (e.lastError ? ` ｜ ${e.lastError}` : '');
+    el.className = 'ds-status ' + (e.running ? 'ok' : (e.lastError ? 'err' : 'warn'));
+  } catch (e) {
+    el.textContent = '状态：读取失败 — ' + e.message;
+    el.className = 'ds-status err';
+  }
+}
+
+async function detectEngine() {
+  const btn = $('btnEngineDetect');
+  btn.disabled = true;
+  btn.textContent = '检测中…';
+  try {
+    const r = await api('/api/engine/scan', {
+      method: 'POST',
+      body: JSON.stringify({
+        dir: $('setEngineDir').value.trim(),
+        account: $('setEngineAccount').value.trim()
+      })
+    });
+    if (r.ok) {
+      $('setEngineDir').value = r.engine.dir;
+      $('setEngineAccount').value = r.engine.account || $('setEngineAccount').value;
+      $('engineStatus').textContent = `已找到：${r.engine.configFile} ｜ 账号 ${r.engine.account || '未命名'} ｜ WS ${r.engine.wsPort} ｜ API ${r.engine.apiPort}`;
+      $('engineStatus').className = 'ds-status ok';
+    } else {
+      $('engineStatus').textContent = '未找到：' + r.error;
+      $('engineStatus').className = 'ds-status err';
+    }
+  } catch (e) {
+    $('engineStatus').textContent = '检测失败：' + e.message;
+    $('engineStatus').className = 'ds-status err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '自动检测';
+    refreshEngineStatus();
+  }
+}
+
+async function startEngine() {
+  const btn = $('btnEngineStart');
+  btn.disabled = true;
+  btn.textContent = '启动中…';
+  try {
+    const r = await api('/api/engine/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        dir: $('setEngineDir').value.trim(),
+        account: $('setEngineAccount').value.trim()
+      })
+    });
+    if (r.ok) {
+      $('setEngineDir').value = r.info.dir;
+      $('setEngineAccount').value = r.info.account || $('setEngineAccount').value;
+      $('engineStatus').textContent = `已同步：${r.started ? '本次已启动' : '复用已运行实例'} ｜ 账号 ${r.login || r.info.account || '未验证'} ｜ WS ${r.info.wsPort}`;
+      $('engineStatus').className = 'ds-status ok';
+      await refreshStatus();
+    } else {
+      $('engineStatus').textContent = '启动失败：' + r.error;
+      $('engineStatus').className = 'ds-status err';
+    }
+  } catch (e) {
+    $('engineStatus').textContent = '启动失败：' + e.message;
+    $('engineStatus').className = 'ds-status err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '启动并同步';
+    refreshEngineStatus();
+  }
+}
+
+async function stopEngine() {
+  const btn = $('btnEngineStop');
+  btn.disabled = true;
+  btn.textContent = '停止中…';
+  try {
+    const r = await api('/api/engine/stop', { method: 'POST', body: '{}' });
+    alert(r.ok ? `已停止本次启动的运行时（PID ${r.pid}）` : r.error);
+  } catch (e) {
+    alert('停止失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '停止本次启动';
+    refreshEngineStatus();
+  }
+}
+
+async function checkUpdate(manual = true) {
+  const btn = $('btnUpdateCheck');
+  const el = $('updateStatus');
+  if (btn) { btn.disabled = true; btn.textContent = '检查中…'; }
+  if (el) { el.textContent = '状态：正在检查更新…'; el.className = 'ds-status'; }
+  try {
+    const r = await api('/api/update/check', { method: 'POST', body: '{}' });
+    if (!r.ok) {
+      const msg = r.configured
+        ? `检查失败：${r.error || '未知错误'}`
+        : `未配置更新地址：${r.error || ''}`;
+      if (el) { el.textContent = msg; el.className = 'ds-status ' + (r.configured ? 'err' : 'warn'); }
+      if (manual) alert(msg);
+      return false;
+    }
+    if (!r.updateAvailable) {
+      if (el) { el.textContent = `状态：已是最新版本 v${r.current}`; el.className = 'ds-status ok'; }
+      if (manual) alert(`当前已经是最新版本 v${r.current}。`);
+      return false;
+    }
+
+    if (el) { el.textContent = `状态：发现新版本 v${r.latest}（当前 v${r.current}）`; el.className = 'ds-status warn'; }
+    const notes = r.notes ? `\n\n更新说明：\n${String(r.notes).slice(0, 800)}` : '';
+    if (!confirm(`发现新版本 v${r.latest}，当前 v${r.current}。${notes}\n\n是否下载更新？`)) {
+      if (el) el.textContent += ' ｜ 已选择不更新';
+      return false;
+    }
+
+    if (el) { el.textContent = `状态：正在下载 v${r.latest}…`; el.className = 'ds-status warn'; }
+    const d = await api('/api/update/download', { method: 'POST', body: '{}' });
+    if (!d.ok) throw new Error(d.error || '下载失败');
+    if (el) {
+      el.textContent = `状态：v${r.latest} 已下载，SHA256 校验通过（${Math.round((d.bytes || 0) / 1024)} KB）`;
+      el.className = 'ds-status ok';
+    }
+    if (confirm(`v${r.latest} 已下载完成，是否立即安装？\n\n安装会结束当前群崽窗口，装好后请重新打开。`)) {
+      const inst = await api('/api/update/install', { method: 'POST', body: '{}' });
+      if (!inst.ok) throw new Error(inst.error || '安装失败');
+      if (el) el.textContent = '状态：安装程序已启动，群崽即将关闭…';
+      setTimeout(() => { try { window.close(); } catch { /* 忽略 */ } }, 2500);
+    } else if (el) {
+      el.textContent += ' ｜ 已选择稍后安装';
+    }
+    return true;
+  } catch (e) {
+    if (el) { el.textContent = '更新失败：' + e.message; el.className = 'ds-status err'; }
+    if (manual) alert('更新失败：' + e.message);
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '检查更新'; }
+  }
+}
+
 async function refreshDsStatus() {
   if ($('setProvider').value !== 'deepseek-web') return;
   try {
@@ -357,10 +558,13 @@ async function refreshDsStatus() {
   } catch { /* 忽略 */ }
 }
 
-// 设置面板打开期间，每 3 秒刷新一次 DeepSeek 状态（轮次/提示词进度）
+// 设置面板打开期间，每 3 秒刷新一次 DeepSeek / QQ 内核状态
 setInterval(() => {
   const modal = document.getElementById('settingsModal');
-  if (modal && !modal.classList.contains('hidden')) refreshDsStatus();
+  if (modal && !modal.classList.contains('hidden')) {
+    refreshDsStatus();
+    refreshEngineStatus();
+  }
 }, 3000);
 
 async function saveSettings() {
@@ -399,7 +603,16 @@ async function saveSettings() {
       onebot: {
         wsUrl: $('setWsUrl').value.trim() || 'ws://127.0.0.1:3001',
         accessToken: $('setToken').value
+      },
+      engine: {
+        dir: $('setEngineDir').value.trim(),
+        account: $('setEngineAccount').value.trim(),
+        autoStart: $('setEngineAuto').checked
       }
+    },
+    update: {
+      manifestUrl: $('setUpdateManifest').value.trim(),
+      autoCheck: $('setUpdateAuto').checked
     }
   };
   const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) }).catch((e) => {
@@ -499,12 +712,17 @@ function connectEvents() {
 
 /* ---------------- 初始化 ---------------- */
 function init() {
+  initTheme();
   $('btnSettings').addEventListener('click', () => {
     openSettings().catch((e) => alert('读取设置失败：' + e.message));
   });
   $('btnSaveSettings').addEventListener('click', saveSettings);
   $('setProvider').addEventListener('change', () => { toggleProviderView(); refreshDsStatus(); });
   $('setReplyMode').addEventListener('change', toggleTargetView);
+  $('btnEngineDetect').addEventListener('click', detectEngine);
+  $('btnEngineStart').addEventListener('click', startEngine);
+  $('btnEngineStop').addEventListener('click', stopEngine);
+  $('btnUpdateCheck').addEventListener('click', () => checkUpdate(true));
   $('btnDsOpen').addEventListener('click', async (e) => {
     e.target.textContent = '启动中…';
     try {
@@ -518,8 +736,15 @@ function init() {
   });
   $('btnDsNew').addEventListener('click', async (e) => {
     e.target.textContent = '处理中…';
-    await api('/api/ai/deepseek/new', { method: 'POST' }).catch(() => {});
-    e.target.textContent = '② 新建对话';
+    try {
+      const r = await api('/api/ai/deepseek/new', { method: 'POST' });
+      if (!r || !r.ok) throw new Error('DeepSeek 页面未就绪，稍后再试');
+      e.target.textContent = '② 已新建对话';
+      setTimeout(() => { e.target.textContent = '② 新建对话'; }, 1500);
+    } catch (err) {
+      e.target.textContent = '② 新建对话';
+      alert('新建对话失败：' + err.message);
+    }
     refreshDsStatus();
   });
   $('btnDsTest').addEventListener('click', async (e) => {
@@ -561,6 +786,14 @@ function init() {
   connectEvents();
   setInterval(() => refreshStatus().catch(() => {}), 15000);
   setInterval(() => refreshChats().catch(() => {}), 30000);
+
+  // 启动后自动检查：只检查版本，发现新版本也必须用户确认后才下载。
+  setTimeout(async () => {
+    try {
+      const cfg = await api('/api/settings');
+      if (cfg.update?.autoCheck !== false) checkUpdate(false);
+    } catch { /* 忽略 */ }
+  }, 9000);
 }
 
 init();

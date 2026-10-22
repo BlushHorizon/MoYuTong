@@ -55,6 +55,7 @@ class DeepSeekWeb {
     this.maxRounds = opts.maxRounds || 50;
     this.roundCount = 0;
     this._promptSent = false;
+    this._promptTask = null;   // 新建对话后的提示词后台发送任务
     this.state = 'idle';
     this.message = '';
     this._ws = null;
@@ -333,10 +334,19 @@ class DeepSeekWeb {
         throw new Error(this.message || `${this.site.short} 未就绪`);
       }
 
+      // 新建对话后的提示词可能还在后台发送；等它结束，避免和用户消息抢输入框。
+      if (this._promptTask) {
+        try { await this._promptTask; } catch { /* 失败时下面会重试 */ }
+      }
+
       // 轮次用尽 → 新建对话，并把提示词重新发一遍
       if (this.roundCount >= this.maxRounds) {
         this._set('thinking', `已达 ${this.maxRounds} 轮，正在新建对话…`);
         await this.newConversation();
+        // newConversation 会把提示词放到后台；这里等它，避免下面再发一遍。
+        if (this._promptTask) {
+          try { await this._promptTask; } catch { }
+        }
       }
       // 本轮对话尚未发送过提示词 → 先发提示词
       if (!this._promptSent && String(this.prompt || '').trim()) {
@@ -597,61 +607,78 @@ class DeepSeekWeb {
     return snap ? (snap.text || '').trim() : '';
   }
 
-  /** 新建一个对话（清空上下文；下次发送时会重发提示词） */
-  async newConversation() {
-    if (!(await this.ensureTarget())) return false;
-    const before = await this._evaluate('location.href').catch(() => '');
-    // 侧边栏收起时按钮在屏幕外（不可见），但合成点击依然有效（事件委托在 React 根节点上）
-    const clicked = await this._evaluate(`(() => {
-      const texts = ${JSON.stringify(this.site.newChat || [])};
-      const all = [...document.querySelectorAll('span,div,button,a')];
-      const node = all.find((el) => {
-        const t = (el.innerText || '').trim();
-        return texts.includes(t) || texts.some((x) => x && t.startsWith(x));
-      });
-      if (!node) return false;
-      const target = node.closest('div[role="button"], button, a') || node.parentElement || node;
-      target.click();
-      return true;
-    })()`, 10000).catch(() => false);
-    // 没有"新建对话"按钮的站点：直接回首页（首页就是新对话）
-    if (!clicked) {
-      if (this.site.navigateFallback) {
-        await this.cdp('Page.navigate', { url: this.site.url }, 15000).catch(() => null);
-      } else {
-        this.onStatus(this.status());
-        return false;
-      }
-    }
-    // 等页面切到新对话：URL 变了，或停在首页（新对话页）
-    let ready = false;
-    for (let i = 0; i < 12; i++) {
+  /** 等页面切到新对话：URL 变了，或停在首页（新对话页） */
+  async _waitForNewChat(before, tries = 12) {
+    for (let i = 0; i < tries; i++) {
       await sleep(800);
       const st = await this._evaluate(`(() => ({
         url: location.href,
         hasTa: !!document.querySelector(${JSON.stringify(this.site.input)})
       }))()`, 8000).catch(() => null);
       const mark = this.site.chatUrlMark || '';
-      if (st && st.hasTa && (st.url !== before || !st.url.includes(mark))) {
-        ready = true;
-        break;
+      if (st && st.hasTa && (st.url !== before || !st.url.includes(mark))) return true;
+    }
+    return false;
+  }
+
+  /** 新建一个对话（清空上下文；下次发送时会重发提示词） */
+  async newConversation() {
+    if (!(await this.ensureTarget())) return false;
+    const before = await this._evaluate('location.href').catch(() => '');
+    // 优先点站点的“新建/开启新对话”：取文字最短的可见节点，避免命中包住整个侧栏的外层容器。
+    // 内嵌宿主里 DeepSeek 页可能处于隐藏标签页，布局为 0，此时直接走导航兜底。
+    const clicked = await this._evaluate(`(() => {
+      const texts = ${JSON.stringify(this.site.newChat || [])};
+      const all = [...document.querySelectorAll('span,div,button,a')];
+      const visible = (el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      const matches = all.filter((el) => {
+        const t = (el.innerText || '').trim();
+        return texts.includes(t) || texts.some((x) => x && t.startsWith(x));
+      }).sort((a, b) => (a.innerText || '').trim().length - (b.innerText || '').trim().length);
+      const node = matches.find(visible);
+      if (!node) return false;
+      const target = node.closest('div[role="button"], button, a, [tabindex="0"]') || node.parentElement || node;
+      target.click();
+      return true;
+    })()`, 10000).catch(() => false);
+    let ready = false;
+    if (clicked) ready = await this._waitForNewChat(before, 6);
+    // 没有按钮、按钮命中不可靠或页面在隐藏标签页里：直接回首页（首页就是新对话）
+    if (!ready) {
+      if (!this.site.navigateFallback) {
+        this.onStatus(this.status());
+        return false;
       }
+      await this.cdp('Page.navigate', { url: this.site.url }, 15000).catch(() => null);
+      ready = await this._waitForNewChat(before, 12);
     }
     this.roundCount = 0;
     this._promptSent = false;
-    // 新建完立即自动发送提示词：不用等下条消息，更不用人手去发
-    if (ready && String(this.prompt || '').trim()) {
-      try {
-        this._set('thinking', '正在发送提示词…');
-        await this._sendAndWait(String(this.prompt).trim(), false);
-        this._promptSent = true;
-        this.roundCount++;
-        this._logPromptSent('新建对话');
-        this._set('ready', '提示词已自动发送，对话就绪');
-      } catch (err) {
-        // 发送失败不阻塞"新建"本身；下条消息触发时 ask 会自动补发
-        this._set('ready', '新对话已就绪（提示词将在下条消息时自动补发）');
-      }
+    // 新建完自动发送提示词，但不在 HTTP 请求里等模型回答：
+    // 提示词发送可能要十几秒，等完会让“新建对话”按钮看起来像卡死。
+    const promptText = String(this.prompt || '').trim();
+    if (ready && promptText) {
+      this._set('ready', '新对话已就绪，提示词正在后台发送');
+      this._promptTask = (async () => {
+        try {
+          this._set('thinking', '正在发送提示词…');
+          await this._sendAndWait(promptText, false);
+          this._promptSent = true;
+          this.roundCount++;
+          this._logPromptSent('新建对话');
+          this._set('ready', '提示词已自动发送，对话就绪');
+        } catch (err) {
+          // 发送失败不阻塞“新建”本身；下条消息触发时 ask 会自动补发
+          this._promptSent = false;
+          this._set('ready', '新对话已就绪（提示词将在下条消息时自动补发）');
+        } finally {
+          this._promptTask = null;
+          this.onStatus(this.status());
+        }
+      })();
     }
     this.onStatus(this.status());
     return ready;

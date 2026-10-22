@@ -144,7 +144,7 @@ class OneBotAdapter extends EventEmitter {
 
     ws.addEventListener('error', () => {
       if (this.ws !== ws) return;
-      this.emit('status', { connected: false, message: '连接错误（NapCat 未启动？）' });
+      this.emit('status', { connected: false, message: '连接错误（本机 OneBot 运行时未启动？）' });
     });
   }
 

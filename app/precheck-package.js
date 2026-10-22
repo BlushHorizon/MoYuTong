@@ -81,7 +81,7 @@ function checkText(dir = DIST, depth = 0) {
   for (const e of ents) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { checkText(p, depth + 1); continue; }
-    if (/\.(exe|mp4|wav|png|jpg|jpeg|gif|zip|ico|woff2?|md)$/i.test(e.name)) continue;
+    if (/\.(exe|dll|pdb|node|mp4|wav|png|jpg|jpeg|gif|zip|ico|woff2?|md)$/i.test(e.name)) continue;
     let t;
     try { t = fs.readFileSync(p, 'utf8'); } catch { continue; }
     const rel = path.relative(DIST, p);

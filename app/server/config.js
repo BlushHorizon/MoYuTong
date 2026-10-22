@@ -21,6 +21,14 @@ const DEFAULT_CONFIG = {
     onebot: {
       wsUrl: 'ws://127.0.0.1:3001',
       accessToken: ''
+    },
+    // 群崽 QQ 内核：只做本机运行时的发现/启动/配置同步，不打包第三方运行时
+    engine: {
+      enabled: true,
+      autoStart: true,
+      dir: '',
+      account: '',
+      apiPort: 3000
     }
   },
   ai: {
@@ -60,6 +68,11 @@ const DEFAULT_CONFIG = {
     minIntervalMs: 2500,         // 同一会话两次回复的最小间隔
     historyTurns: 8,             // 送给模型的上下文轮数
     replyDelayMs: 900            // 模拟“正在输入”的思考时间
+  },
+  // 自动更新：只检查，下载/安装必须用户确认
+  update: {
+    manifestUrl: '',
+    autoCheck: true
   }
 };
 

@@ -16,17 +16,21 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { execFileSync, spawnSync } = require('child_process');
+const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+const pkg = require('./package.json');
 
 const ROOT = __dirname;
 const DIST = path.join(ROOT, 'dist');
+const VERSION = pkg.version;
+const RELEASES = path.resolve(ROOT, '..', 'releases');
 
 /* 目录级同步 */
 const DIRS = ['server', 'public', 'assets'];
 /* 单文件同步（从源根目录） */
 const FILES = ['launcher.ps1'];
-/* 只同步固定几个 bat：start.bat / 停止服务.bat 是开发用的，不进包 */
-const BATS = ['开启.bat', '关闭.bat'];
+/* 旧版独立的开启/关闭入口已合并进桌面宿主；这些文件不再进安装包 */
+const LEGACY_ENTRY_FILES = ['开启.bat', '关闭.bat'];
 
 function rmrf(p) { fs.rmSync(p, { recursive: true, force: true }); }
 function copyDir(src, dst) {
@@ -42,6 +46,13 @@ function copyDir(src, dst) {
 console.log('=== 1. 同步源码 → dist/ ===');
 fs.mkdirSync(DIST, { recursive: true });
 let n = 0;
+for (const f of LEGACY_ENTRY_FILES) {
+  const p = path.join(DIST, f);
+  if (fs.existsSync(p)) {
+    fs.rmSync(p, { force: true });
+    console.log('  已移除旧入口 dist/' + f);
+  }
+}
 for (const dir of DIRS) {
   const src = path.join(ROOT, dir);
   if (!fs.existsSync(src)) { console.log('  跳过(不存在) ' + dir); continue; }
@@ -51,6 +62,34 @@ for (const dir of DIRS) {
   n += cnt;
   console.log(`  ${dir}/  (${cnt} 个文件)`);
 }
+/* 桌面宿主：先编译，避免把旧 exe 打进安装包 */
+const desktopDir = path.join(ROOT, 'desktop');
+const desktopBin = path.join(desktopDir, 'bin');
+if (fs.existsSync(path.join(desktopDir, 'build.ps1'))) {
+  console.log('  编译桌面宿主 QunZaiHost.exe');
+  const b = spawnSync('powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(desktopDir, 'build.ps1'), '-Force'],
+    { cwd: ROOT, encoding: 'utf8' });
+  if (b.status !== 0) {
+    console.error((b.stdout || '') + (b.stderr || ''));
+    console.error('✗ 桌面宿主编译失败，拒绝打包');
+    process.exit(1);
+  }
+}
+if (fs.existsSync(desktopBin)) {
+  rmrf(path.join(DIST, 'desktop'));
+  copyDir(desktopBin, path.join(DIST, 'desktop'));
+  for (const junk of ['desktop-host.log', 'QunZaiHost.pdb']) {
+    rmrf(path.join(DIST, 'desktop', junk));
+  }
+  const cnt = fs.readdirSync(path.join(DIST, 'desktop')).length;
+  n += cnt;
+  console.log(`  desktop/  (${cnt} 个文件，含 WebView2 宿主)`);
+} else {
+  console.error('✗ 缺少 desktop/bin/QunZaiHost.exe，拒绝打包');
+  process.exit(1);
+}
+
 for (const f of FILES) {
   const src = path.join(ROOT, f);
   if (!fs.existsSync(src)) { console.log('  跳过(不存在) ' + f); continue; }
@@ -58,14 +97,6 @@ for (const f of FILES) {
   n++;
   console.log('  ' + f);
 }
-for (const f of BATS) {
-  const src = path.join(ROOT, f);
-  if (!fs.existsSync(src)) { console.log('  跳过(不存在) ' + f); continue; }
-  fs.copyFileSync(src, path.join(DIST, f));
-  n++;
-  console.log('  ' + f);
-}
-
 console.log('\n=== 2. 现生成 dist/config.json（唯一来源：DEFAULT_CONFIG + 出厂覆盖）===');
 const configLib = require(path.join(ROOT, 'server', 'config.js'));
 /* 出厂默认与「代码默认」故意不同，别把它们混为一谈：
@@ -76,12 +107,14 @@ const configLib = require(path.join(ROOT, 'server', 'config.js'));
  * 两者都绝不含任何真实凭证——这个对象是硬编码的，不来自任何运行中的配置。 */
 const PACKAGE_OVERRIDES = {
   qq: { mode: 'onebot', onebot: { wsUrl: 'ws://127.0.0.1:3001', accessToken: '' } },
-  ai: { enabled: true }
+  ai: { enabled: true },
+  update: { manifestUrl: 'https://blushhorizon.github.io/QunZai/update.json' }
 };
 const packaged = JSON.parse(JSON.stringify(configLib.DEFAULT_CONFIG));
 packaged.qq.mode = PACKAGE_OVERRIDES.qq.mode;
 packaged.qq.onebot = { ...PACKAGE_OVERRIDES.qq.onebot };
 packaged.ai.enabled = PACKAGE_OVERRIDES.ai.enabled;
+packaged.update = { ...packaged.update, ...PACKAGE_OVERRIDES.update };
 fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify(packaged, null, 2), 'utf8');
 n++;
 {
@@ -92,6 +125,7 @@ n++;
   console.log('  ai.apiKey             = ' + JSON.stringify(c.ai.apiKey) + (c.ai.apiKey ? '  ⚠ 非空！' : '  ✓'));
   console.log('  ai.commandSenders     = ' + JSON.stringify(c.ai.commandSenders) + '  ✓');
   console.log('  ai.targetChatKey(s)   = ' + JSON.stringify(c.ai.targetChatKey) + ' / ' + JSON.stringify(c.ai.targetChatKeys) + '  ✓');
+  console.log('  update.manifestUrl    = ' + JSON.stringify(c.update.manifestUrl) + '  ✓');
 }
 
 console.log('\n=== 3. 清掉不该进包的文件 ===');
@@ -120,17 +154,36 @@ if (pre.status !== 0) {
 console.log('\n✓ 同步完成，dist/ 共 ' + n + ' 个文件，可安全打包。');
 
 if (process.argv.includes('--installer')) {
-  console.log('\n=== 5. 编译安装包 ===');
+  console.log('\n=== 5. 编译安装包（v' + VERSION + '） ===');
+  fs.mkdirSync(RELEASES, { recursive: true });
   const makensis = ['C:\\Program Files (x86)\\NSIS\\makensis.exe', 'C:\\Program Files\\NSIS\\makensis.exe']
     .find((p) => fs.existsSync(p));
   if (!makensis) { console.error('✗ 找不到 makensis.exe'); process.exit(1); }
-  const r = spawnSync(makensis, ['setup.nsi'], { cwd: ROOT, encoding: 'utf8' });
+  const r = spawnSync(makensis, ['/DVERSION=' + VERSION, 'setup.nsi'], { cwd: ROOT, encoding: 'utf8' });
   process.stdout.write((r.stdout || '') + (r.stderr || ''));
   if (r.status !== 0) { console.error('✗ makensis 失败'); process.exit(1); }
-  const out = 'H:\\安装包\\群崽QunZai安装包.exe';
-  if (fs.existsSync(out)) {
-    const buf = fs.readFileSync(out);
-    const crypto = require('crypto');
-    console.log('  ✓ ' + out + '  ' + (buf.length / 1024).toFixed(1) + ' KB  MD5=' + crypto.createHash('md5').update(buf).digest('hex').toUpperCase().slice(0, 12));
-  }
+  const out = path.join(RELEASES, `群崽QunZai安装包-v${VERSION}.exe`);
+  if (!fs.existsSync(out)) { console.error('✗ 安装包没有生成：' + out); process.exit(1); }
+
+  const buf = fs.readFileSync(out);
+  const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+  const md5 = crypto.createHash('md5').update(buf).digest('hex').toUpperCase();
+  const history = path.join(RELEASES, 'history', 'v' + VERSION);
+  fs.mkdirSync(history, { recursive: true });
+  fs.copyFileSync(out, path.join(history, path.basename(out)));
+  fs.writeFileSync(path.join(history, 'SHA256.txt'),
+    `${sha256}  ${path.basename(out)}\nMD5 ${md5}\nSize ${buf.length} bytes\n`, 'utf8');
+  fs.writeFileSync(path.join(history, 'release.json'), JSON.stringify({
+    name: '群崽 QunZai',
+    version: VERSION,
+    builtAt: new Date().toISOString(),
+    file: path.basename(out),
+    bytes: buf.length,
+    md5,
+    sha256,
+    note: '本地历史归档；发布状态见官网 / GitHub Releases'
+  }, null, 2), 'utf8');
+  console.log('  ✓ ' + out + '  ' + (buf.length / 1024).toFixed(1) + ' KB');
+  console.log('  MD5=' + md5 + '  SHA256=' + sha256.slice(0, 16) + '…');
+  console.log('  ✓ 本地历史归档：' + history);
 }

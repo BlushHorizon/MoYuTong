@@ -1,0 +1,12 @@
+{
+  "version": "1.4.0",
+  "notes": "群崽 v1.4.0：桌面宿主内置服务启停，关闭窗口自动停止由它启动的服务；升级会清理旧版开启/关闭快捷方式。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。历史版本见 GitHub Releases。",
+  "pubDate": "2026-10-23",
+  "files": [
+    {
+      "url": "https://blushhorizon.github.io/QunZai/assets/%E7%BE%A4%E5%B4%BDQunZai%E5%AE%89%E8%A3%85%E5%8C%85.exe",
+      "sha256": "841b8ac4ff3be094f5a1afc7301eb03e3cf6d12d1f36b7ed7f012d7a8ed69369",
+      "size": 343754
+    }
+  ]
+}

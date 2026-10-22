@@ -8,6 +8,13 @@
     "onebot": {
       "wsUrl": "ws://127.0.0.1:3001",
       "accessToken": ""
+    },
+    "engine": {
+      "enabled": true,
+      "autoStart": true,
+      "dir": "",
+      "account": "",
+      "apiPort": 3000
     }
   },
   "ai": {
@@ -38,5 +45,9 @@
     "minIntervalMs": 2500,
     "historyTurns": 8,
     "replyDelayMs": 900
+  },
+  "update": {
+    "manifestUrl": "https://blushhorizon.github.io/QunZai/update.json",
+    "autoCheck": true
   }
 }

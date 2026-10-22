@@ -1,9 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>群崽 QunZai · QQ 智能体监控台</title>
+  <script>
+    try {
+      if (localStorage.getItem('qunzai.theme') === 'light') {
+        document.documentElement.dataset.theme = 'light';
+      }
+    } catch (e) {}
+  </script>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
 </head>
@@ -15,6 +22,7 @@
         <span class="logo">◉</span>
         <span class="title">群崽 <em>QunZai</em></span>
         <span class="subtitle">QQ 智能体监控台</span>
+        <span class="version" id="appVersion">v1.4.0</span>
       </div>
       <div class="topbar-right">
         <div class="pill" id="qqStatusPill" title="QQ 接入状态">
@@ -25,6 +33,7 @@
           <span class="track"><span class="knob"></span></span>
           <span class="ai-label">AI 自动回复</span>
         </label>
+        <button class="icon-btn" id="btnTheme" title="切换浅色主题">☾</button>
         <button class="icon-btn" id="btnSettings" title="设置">⚙</button>
       </div>
     </header>
@@ -215,7 +224,7 @@
           <span>模式</span>
           <select id="setMode">
             <option value="mock">演示模式（模拟）</option>
-            <option value="onebot">OneBot 11（NapCatQQ）</option>
+            <option value="onebot">OneBot 11（本机兼容运行时）</option>
           </select>
         </label>
         <label class="field">
@@ -224,13 +233,49 @@
         </label>
         <label class="field">
           <span>AccessToken</span>
-          <input type="password" id="setToken" placeholder="NapCat 未设置则留空" />
+          <input type="password" id="setToken" placeholder="兼容运行时未设置则留空" />
         </label>
-        <p class="tip">保存后会自动按新地址重连 QQ，不用重启服务；若没连上，检查 NapCat 是否已启动、端口是否一致。NapCat 配置见 README。</p>
+        <p class="tip">保存后会自动按新地址重连 QQ，不用重启服务；若没连上，先用下面的「群崽 QQ 内核」自动检测并同步，或检查本机 OneBot 运行时是否已启动、端口是否一致。</p>
+
+        <h4>群崽 QQ 内核</h4>
+        <p class="tip">自动检测你本机已安装的兼容 OneBot 运行时，按它自己的入口启动，并读取它自己的 WS 端口和 Token 同步到群崽。不打包、不复制第三方运行时本体；界面和配置层是群崽自己的。</p>
+        <label class="field column">
+          <span>运行时目录（留空 = 自动扫描常见目录）</span>
+          <input type="text" id="setEngineDir" placeholder="例如 D:\你的OneBot运行时" />
+        </label>
+        <label class="field">
+          <span>机器人 QQ（可选）</span>
+          <input type="text" id="setEngineAccount" placeholder="只选这个账号的 onebot_*.json，防止误用其他号" />
+        </label>
+        <label class="field">
+          <span>启动时自动检测</span>
+          <input type="checkbox" id="setEngineAuto" />
+        </label>
+        <div class="ds-status" id="engineStatus">状态：未检测</div>
+        <div class="row-btns">
+          <button class="mini-btn" id="btnEngineDetect">自动检测</button>
+          <button class="mini-btn alt" id="btnEngineStart">启动并同步</button>
+          <button class="mini-btn danger-btn" id="btnEngineStop">停止本次启动</button>
+        </div>
+
+        <h4>自动更新</h4>
+        <label class="field column">
+          <span>更新清单地址（留空则读取 data/update.json）</span>
+          <input type="text" id="setUpdateManifest" placeholder="https://…/update.json 或本地路径" />
+        </label>
+        <label class="field">
+          <span>启动时自动检查</span>
+          <input type="checkbox" id="setUpdateAuto" />
+        </label>
+        <div class="ds-status" id="updateStatus">状态：未检查</div>
+        <div class="row-btns">
+          <button class="mini-btn" id="btnUpdateCheck">检查更新</button>
+        </div>
+        <p class="tip">发现新版本后会先询问“更新 / 不更新”，你同意后才下载；下载完成后还会再确认是否安装。不会静默更新。</p>
 
         <h4>关于与声明</h4>
         <div class="about-box">
-          <p><b>群崽 QunZai</b> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
+          <p><b>群崽 QunZai</b> <span id="aboutVersion">v1.4.0</span> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
           <p>· 本项目<b>不是反代、没有第三方中转、没有逆向 DeepSeek 网页</b>；原理是用 Node 连接本机浏览器调试端口（CDP）模拟操作，<b>这与反代一样均违反 DeepSeek 用户协议，账号可能被临时限制或封禁</b>。</p>
           <p>· 它会把 AI 生成的内容<b>自动发到 QQ</b>，无审核无黑名单，<b>请勿用于骚扰、刷屏、恶作剧，建议使用小号</b>。</p>
           <p>· 运行时会自动拉起 Edge 并连接调试端口，<b>可能被杀软误报为木马</b>；源码公开可自行审计，确认为误报请加白名单。</p>

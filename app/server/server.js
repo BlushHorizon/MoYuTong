@@ -14,9 +14,13 @@ const path = require('path');
 const { URL } = require('url');
 
 const configLib = require('./config');
+const { version: APP_VERSION } = require('./version');
+const ports = require('./ports');
 const { Store } = require('./store');
 const { createAdapter } = require('./qq-adapter');
 const { AIResponder } = require('./ai');
+const { QQEngine } = require('./engine');
+const { Updater } = require('./updater');
 const { DeepSeekWeb, siteList } = require('./deepseek-web');
 const { StickerLibrary } = require('./stickers');
 
@@ -135,6 +139,19 @@ function rebuildAdapter(reason = '') {
   }, 300);
 }
 
+/* ---------------- 群崽 QQ 内核 ---------------- */
+const engine = new QQEngine({
+  root: ROOT,
+  getConfig: () => configLib.get(),
+  saveConfig: (patch) => configLib.save(patch)
+});
+
+const updater = new Updater({
+  root: ROOT,
+  currentVersion: APP_VERSION,
+  getConfig: () => configLib.get()
+});
+
 /** 把好友/群拉进会话列表，这样网页打开就能直接看到全部联系人 */
 let seeding = false;
 async function seedContacts() {
@@ -181,8 +198,10 @@ function onAdapterEvent(msg) {
 }
 
 /* ---------------- AI ---------------- */
+// 桌面内嵌模式会通过环境变量指定 CDP 端口，确保 WebView2 和 Node 驱动连的是同一个端口
+const preferredCdpPort = Number(process.env.QUNZAI_CDP_PORT || cfg.ai?.cdpPort || 9222) || 9222;
 const deepseek = new DeepSeekWeb({
-  port: cfg.ai?.cdpPort || 9222,
+  port: preferredCdpPort,
   profileDir: path.join(ROOT, 'data', 'deepseek_profile'),
   browserPath: cfg.ai?.browserPath || '',
   site: cfg.ai?.webProvider || 'deepseek',   // 网页版站点：当前内置 deepseek
@@ -299,7 +318,9 @@ async function handleApi(req, res, url) {
       qq: qqStatus,
       self: adapter.self,
       ai: ai.status(),
-      version: '1.0.0'
+      version: APP_VERSION,
+      runtime: ports.readRuntime(ROOT),
+      embedded: process.env.QUNZAI_EMBEDDED === '1'
     });
   }
 
@@ -401,7 +422,8 @@ async function handleApi(req, res, url) {
             hasToken: !!token
           }
         },
-        ai: { ...c.ai, apiKey: c.ai.apiKey ? '********' : '', hasKey: !!c.ai.apiKey }
+        ai: { ...c.ai, apiKey: c.ai.apiKey ? '********' : '', hasKey: !!c.ai.apiKey },
+        update: { ...(c.update || {}) }
       });
     }
     if (req.method === 'POST') {
@@ -421,6 +443,7 @@ async function handleApi(req, res, url) {
         }
       }
       /* 先记下旧的 QQ 接入配置，判断是否需要重建适配器 */
+      if (body.update) patch.update = { ...body.update };
       const beforeQQ = JSON.stringify(configLib.get().qq);
       configLib.save(patch);
       if (patch.ai) {
@@ -449,6 +472,62 @@ async function handleApi(req, res, url) {
   }
 
   /* ---------------- 网页版模型（切换模型） ---------------- */
+  /* ---------------- 群崽 QQ 内核 ---------------- */
+  if (p === '/api/engine/status' && req.method === 'GET') {
+    return sendJson(res, 200, { ok: true, engine: await engine.status() });
+  }
+
+  if (p === '/api/engine/scan' && req.method === 'POST') {
+    const body = await readBody(req);
+    const found = await engine.discover({
+      dir: String(body.dir || '').trim(),
+      account: String(body.account || '').trim()
+    });
+    return sendJson(res, 200, found.ok
+      ? { ok: true, engine: found.public }
+      : { ok: false, error: found.error, tried: found.tried });
+  }
+
+  if (p === '/api/engine/start' && req.method === 'POST') {
+    const body = await readBody(req);
+    const result = await engine.start({
+      dir: String(body.dir || '').trim(),
+      account: String(body.account || '').trim()
+    });
+    if (result.ok) {
+      if (result.changed) rebuildAdapter('QQ 内核已自动配置');
+      broadcast({ type: 'engine_status', engine: await engine.status() });
+    }
+    return sendJson(res, 200, result);
+  }
+
+  if (p === '/api/engine/stop' && req.method === 'POST') {
+    const result = engine.stop();
+    broadcast({ type: 'engine_status', engine: await engine.status() });
+    return sendJson(res, 200, result);
+  }
+
+  /* ---------------- 自动更新（只检查，下载/安装必须用户确认） ---------------- */
+  if (p === '/api/update/check' && (req.method === 'GET' || req.method === 'POST')) {
+    try {
+      return sendJson(res, 200, await updater.check());
+    } catch (err) {
+      return sendJson(res, 200, { ok: false, configured: true, error: err.message });
+    }
+  }
+
+  if (p === '/api/update/download' && req.method === 'POST') {
+    try {
+      return sendJson(res, 200, await updater.download());
+    } catch (err) {
+      return sendJson(res, 200, { ok: false, error: err.message });
+    }
+  }
+
+  if (p === '/api/update/install' && req.method === 'POST') {
+    return sendJson(res, 200, updater.install());
+  }
+
   if (p === '/api/web/sites' && req.method === 'GET') {
     return sendJson(res, 200, { ok: true, sites: siteList(), current: deepseek.status().site });
   }
@@ -624,24 +703,105 @@ const server = http.createServer((req, res) => {
 });
 
 server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(`[启动失败] 端口 ${cfg.server.port} 已被其他程序占用。`);
-    console.error('请关闭占用该端口的程序，或修改 config.json 里的 server.port 后重新启动。');
-    process.exit(2);
-  }
-  console.error('[启动失败]', err && err.message ? err.message : err);
-  process.exit(1);
+  // 启动阶段的 EADDRINUSE 由 listenWithFallback 自己处理；这里只兜底运行期错误
+  if (err && err.code === 'EADDRINUSE') return;
+  console.error('[服务错误]', err && err.message ? err.message : err);
 });
 
-server.listen(cfg.server.port, cfg.server.host, () => {
-  const url = `http://${cfg.server.host}:${cfg.server.port}`;
+const serverHost = process.env.QUNZAI_SERVER_HOST || cfg.server.host || '127.0.0.1';
+const preferredServerPort = Number(process.env.QUNZAI_SERVER_PORT || cfg.server.port) || 8787;
+
+function listenOnce(port) {
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      cleanup();
+      if (err && err.code === 'EADDRINUSE') resolve(null);
+      else reject(err);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve(server.address().port);
+    };
+    const cleanup = () => {
+      server.removeListener('error', onError);
+      server.removeListener('listening', onListening);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    try {
+      server.listen(port, serverHost);
+    } catch (err) {
+      cleanup();
+      reject(err);
+    }
+  });
+}
+
+async function resolveCdpPort() {
+  const current = Number(deepseek.port) || 9222;
+  // 端口上已经是 CDP（可能是桌面窗口 / 上次启动的浏览器）就复用
+  if (await ports.isCdp(current)) return current;
+  if (await ports.isPortFree(current)) return current;
+  const next = await ports.findFreePort(current + 1, { max: 60 });
+  console.log(`[端口] CDP ${current} 被占用，自动切换到 ${next}`);
+  deepseek.configure({ port: next });
+  return next;
+}
+
+async function startHttpServer() {
+  // 先定 CDP 端口，再监听 HTTP：否则网页已经能打开、但 CDP 还没定，
+  // 桌面窗口可能抢先占一个端口，导致 Node 和 WebView2 连不到一起。
+  const cdpPort = await resolveCdpPort();
+
+  let actualPort = preferredServerPort;
+  let listened = null;
+  for (let i = 0; i < 60; i++) {
+    listened = await listenOnce(actualPort);
+    if (listened) break;
+    console.warn(`[端口] ${actualPort} 被占用，自动尝试 ${actualPort + 1}`);
+    actualPort++;
+  }
+  if (!listened) throw new Error('连续 60 个服务端口都被占用，无法启动');
+
+  const url = `http://${serverHost}:${listened}`;
+  ports.writeRuntime(ROOT, {
+    serverPort: listened,
+    cdpPort,
+    host: serverHost,
+    embedded: process.env.QUNZAI_EMBEDDED === '1',
+    stopped: false
+  });
+
   console.log('--------------------------------------------------');
   console.log('  网页版 QQ 助手已启动');
   console.log(`  地址：${url}`);
+  if (listened !== preferredServerPort) {
+    console.log(`  （端口 ${preferredServerPort} 被占用，已自动改用 ${listened}）`);
+  }
   console.log(`  QQ 接入模式：${cfg.qq.mode === 'onebot' ? `OneBot 11 (${cfg.qq.onebot.wsUrl})` : '演示模式（模拟消息）'}`);
   console.log(`  AI 自动回复：${ai.status().provider}`);
+  console.log(`  DeepSeek CDP：${cdpPort}`);
   console.log('--------------------------------------------------');
   adapter.connect();
+
+  // 群崽 QQ 内核：延迟一点启动，避免和网页/DeepSeek 抢启动资源。
+  // 找到已运行的运行时就只同步配置；没运行才按它自己的入口启动。
+  setTimeout(() => {
+    engine.auto().then(async (result) => {
+      if (result.ok) {
+        console.log(`[engine] QQ 内核已就绪：${result.info.account || '未命名账号'} @ ${result.info.wsPort}`);
+        if (result.changed) rebuildAdapter('QQ 内核自动同步');
+        broadcast({ type: 'engine_status', engine: await engine.status() });
+      } else if (!result.skipped) {
+        console.log('[engine] ' + result.error);
+      }
+    }).catch((err) => console.warn('[engine] 自动配置失败:', err.message));
+  }, 1200);
+}
+
+startHttpServer().catch((err) => {
+  console.error('[启动失败]', err && err.message ? err.message : err);
+  process.exit(1);
 });
 
 // 定时心跳事件，便于前端确认连接
@@ -649,8 +809,10 @@ setInterval(() => broadcast({ type: 'ping', t: Date.now() }), 30000).unref?.();
 
 const shutdown = () => {
   console.log('\n退出中…');
+  try { ports.writeRuntime(ROOT, { serverPort: 0, stopped: true }); } catch { /* noop */ }
   try { adapter.close(); } catch { /* noop */ }
   try { store.save(); } catch { /* noop */ }
+  try { server.close(); } catch { /* noop */ }
   process.exit(0);
 };
 process.on('SIGINT', shutdown);

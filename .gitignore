@@ -23,6 +23,9 @@ mv/.edge-profile/
 mv/.edge-profile-promo/
 mv/.edge-site/
 
+# 桌面宿主编译产物（打包时由 app/desktop/build.ps1 重新生成）
+app/desktop/bin/
+
 # 浏览器 / 系统杂项
 Thumbs.db
 desktop.ini

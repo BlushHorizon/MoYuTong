@@ -17,6 +17,23 @@
   --ai: #8b7bff;
 }
 
+/* 浅色主题：只覆盖颜色变量和少数深色硬编码，布局完全复用 */
+html[data-theme="light"] {
+  --bg: #eef4fa;
+  --bg-soft: #f8fbff;
+  --card: #ffffff;
+  --card-hover: #f1f7fd;
+  --line: #d7e3ef;
+  --text: #152435;
+  --text-dim: #586c82;
+  --text-faint: #8ba0b5;
+  --accent: #0077b6;
+  --ok: #0b8f4d;
+  --warn: #b26a00;
+  --bad: #d33a2c;
+  --ai: #6650c8;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body { height: 100%; }
@@ -67,6 +84,14 @@ body {
 .title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
 .title em { font-style: normal; color: var(--accent); font-weight: 600; }
 .subtitle { color: var(--text-dim); font-size: 12px; }
+.version {
+  font-size: 10px;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  letter-spacing: 0.5px;
+}
 
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 
@@ -431,3 +456,46 @@ textarea { resize: vertical; }
 }
 .about-links { padding-top: 4px; border-top: 1px dashed rgba(255, 255, 255, 0.12); margin-top: 8px; }
 .about-links a { color: var(--blue2, #6aa4ff); }
+
+/* ---------------- 浅色主题细节 ---------------- */
+html[data-theme="light"] body {
+  background:
+    radial-gradient(1000px 500px at 85% -10%, rgba(0, 119, 182, 0.08), transparent 60%),
+    radial-gradient(800px 400px at -10% 110%, rgba(102, 80, 200, 0.06), transparent 60%),
+    var(--bg);
+}
+html[data-theme="light"] .topbar {
+  background: rgba(248, 251, 255, 0.92);
+}
+html[data-theme="light"] .logo {
+  text-shadow: 0 0 18px rgba(0, 119, 182, 0.28);
+}
+html[data-theme="light"] .ai-switch .track { background: #c9d7e5; }
+html[data-theme="light"] .ai-switch .knob { background: #ffffff; }
+html[data-theme="light"] .ai-switch input:checked + .track { background: rgba(11, 143, 77, 0.22); }
+html[data-theme="light"] .avatar { background: #e7f0fa; }
+html[data-theme="light"] .avatar.group { background: #ece8fb; }
+html[data-theme="light"] .ov-item .type { background: #eaf2fa; }
+html[data-theme="light"] .ov-item .type.group { background: #ece8fb; }
+html[data-theme="light"] .feed-tag { background: #eaf2fa; }
+html[data-theme="light"] .modal { background: rgba(20, 35, 52, 0.35); }
+html[data-theme="light"] .modal-card { box-shadow: 0 24px 70px rgba(30, 50, 75, 0.18); }
+html[data-theme="light"] input[type="text"],
+html[data-theme="light"] input[type="number"],
+html[data-theme="light"] input[type="password"],
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .ds-status { background: #ffffff; }
+html[data-theme="light"] .mini-btn { background: #eaf5fc; }
+html[data-theme="light"] .sticker-row:hover { background: rgba(0, 119, 182, 0.06); }
+html[data-theme="light"] .sticker-thumb { background: rgba(0, 0, 0, 0.06); }
+html[data-theme="light"] .about-box {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(178, 106, 0, 0.25);
+  color: var(--text-dim);
+}
+html[data-theme="light"] .about-box b { color: #122132; }
+html[data-theme="light"] .about-box code { background: rgba(0, 0, 0, 0.06); }
+html[data-theme="light"] .about-links { border-top-color: rgba(0, 0, 0, 0.12); }
+html[data-theme="light"] .about-links a { color: #0066cc; }
+html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c5d4e3; }
