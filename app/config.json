@@ -38,5 +38,9 @@
     "minIntervalMs": 2500,
     "historyTurns": 8,
     "replyDelayMs": 900
+  },
+  "update": {
+    "manifestUrl": "https://blushhorizon.github.io/QunZai/update.json",
+    "autoCheck": true
   }
 }

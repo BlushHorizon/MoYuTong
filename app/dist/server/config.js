@@ -8,6 +8,7 @@ const { writeFileAtomic, readFileText } = require('./atomic');
 
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT, 'config.json');
+const OFFICIAL_UPDATE_MANIFEST = 'https://blushhorizon.github.io/QunZai/update.json';
 
 const DEFAULT_CONFIG = {
   server: {
@@ -71,7 +72,7 @@ const DEFAULT_CONFIG = {
   },
   // 自动更新：只检查，下载/安装必须用户确认
   update: {
-    manifestUrl: '',
+    manifestUrl: OFFICIAL_UPDATE_MANIFEST,
     autoCheck: true
   }
 };
@@ -89,19 +90,29 @@ function deepMerge(base, override) {
   return out;
 }
 
-let current = deepMerge(DEFAULT_CONFIG, {});
+/**
+ * 旧版升级会保留原 config.json；旧文件里的 update.manifestUrl 往往是空字符串。
+ * 空值无法自动更新，这里回填官方清单地址。用户仍可在设置里改成自己的地址。
+ */
+function normalizeConfig(cfg) {
+  if (!isPlainObject(cfg.update)) cfg.update = {};
+  if (!String(cfg.update.manifestUrl || '').trim()) cfg.update.manifestUrl = OFFICIAL_UPDATE_MANIFEST;
+  return cfg;
+}
+
+let current = normalizeConfig(deepMerge(DEFAULT_CONFIG, {}));
 
 function load() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       // 兼容带 BOM 的文件（PowerShell 的 UTF8 编码会写入 BOM）
       const rawText = readFileText(CONFIG_PATH);
-      current = deepMerge(DEFAULT_CONFIG, JSON.parse(rawText));
+      current = normalizeConfig(deepMerge(DEFAULT_CONFIG, JSON.parse(rawText)));
     } else {
       // 主文件不在，但临时文件在 = 上次死在 rename 之前，内容其实是新的
       const tmp = CONFIG_PATH + '.tmp';
       if (fs.existsSync(tmp)) {
-        current = deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp)));
+        current = normalizeConfig(deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp))));
         try { fs.renameSync(tmp, CONFIG_PATH); } catch { /* noop */ }
         console.log('[config] 主文件缺失，已从临时文件恢复设置');
       } else {
@@ -114,12 +125,12 @@ function load() {
     try {
       const tmp = CONFIG_PATH + '.tmp';
       if (fs.existsSync(tmp)) {
-        current = deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp)));
+        current = normalizeConfig(deepMerge(DEFAULT_CONFIG, JSON.parse(readFileText(tmp))));
         console.warn('[config] 已从临时文件恢复设置');
         return current;
       }
     } catch { /* 临时文件也救不了 */ }
-    current = deepMerge(DEFAULT_CONFIG, {});
+    current = normalizeConfig(deepMerge(DEFAULT_CONFIG, {}));
   }
   return current;
 }
