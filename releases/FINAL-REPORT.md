@@ -31,4 +31,4 @@
 
 ## 历史版本
 
-`v1.0.0` 至 `v1.4.0` 的安装包均保留在 GitHub Releases / 本地 `releases/history/` 归档中。
+`v1.0.0` 至 `v1.4.0` 的安装包均保留在 GitHub 仓库 `releases/` 与本地 `releases/history/` 归档中；v1.4.0 Release 正文提供全部历史版本直链，v1.0.0 保留独立 Release。
