@@ -215,18 +215,24 @@ class Updater {
       return { ok: false, error: '更新文件路径不合法' };
     }
     if (!/\.exe$/i.test(file)) return { ok: false, error: '更新文件不是 exe' };
-    try {
-      const child = spawn(file, ['/S'], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        cwd: path.dirname(file)
-      });
-      child.unref();
-      return { ok: true, file, pid: child.pid };
-    } catch (err) {
-      return { ok: false, error: '启动安装程序失败：' + err.message };
-    }
+    // 这里故意不再用 /S 静默安装：
+    //   1) 用户能看到安装器真的启动了；
+    //   2) 安装器会先结束旧宿主和旧 Node 服务，再覆盖文件；
+    //   3) 交互安装的完成页会直接启动新版本。
+    // 延迟 800ms 是为了先把 HTTP 响应发回页面；否则安装器结束 Node 时，
+    // 页面只会看到“网络错误”，而不是“安装程序已启动”。
+    setTimeout(() => {
+      try {
+        const child = spawn(file, [], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: false,
+          cwd: path.dirname(file)
+        });
+        child.unref();
+      } catch { /* 错误由安装器自身提示 */ }
+    }, 800);
+    return { ok: true, file, scheduled: true };
   }
 }
 

@@ -14,7 +14,7 @@ SetCompressor /SOLID lzma
 !define REGKEY "Software\QunZai"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QunZai"
 !ifndef VERSION
-  !define VERSION "1.4.0"
+  !define VERSION "1.4.2"
 !endif
 
 Name "${APPNAME}"
@@ -48,9 +48,19 @@ Section "主程序" SecMain
   SetOutPath "$INSTDIR"
   File "..\LICENSE"
 
+  ; 自动更新会从正在运行的 Node 服务里拉起安装器：
+  ; 先留出时间让 HTTP 响应发回页面，再结束旧宿主和旧服务。
+  Sleep 1000
+
   ; 覆盖安装前先结束旧桌面宿主，否则 exe 被占用会导致复制失败
   nsExec::Exec 'taskkill /IM QunZaiHost.exe /F'
   Pop $0
+
+  ; 只结束 QunZaiHost 不够：Node 服务是独立进程，会继续跑旧代码。
+  ; launcher -Stop 会按 runtime/端口确认是 server\server.js 后再结束。
+  IfFileExists "$INSTDIR\launcher.ps1" 0 noStopService
+    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\launcher.ps1" -Stop' $0
+  noStopService:
 
   ; ---------- Node.js 检测（22+；网页驱动依赖内置 WebSocket） ----------
   nsExec::ExecToStack 'cmd /c node -e "process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)"'
@@ -130,6 +140,11 @@ Section "主程序" SecMain
   CreateShortCut "$SMPROGRAMS\${APPNAME}\启动 ${APPNAME}.lnk" "$INSTDIR\desktop\QunZaiHost.exe" "" "$INSTDIR\assets\icon.ico" 0
   CreateShortCut "$SMPROGRAMS\${APPNAME}\卸载 ${APPNAME}.lnk" "$INSTDIR\uninstall.exe" "" \
     "$INSTDIR\assets\icon.ico" 0
+
+  ; 静默安装没有完成页，装完直接拉起新版本；交互安装仍由完成页启动。
+  IfSilent 0 noAutoStart
+    Exec '"$INSTDIR\desktop\QunZaiHost.exe"'
+  noAutoStart:
 SectionEnd
 
 Section "Uninstall"

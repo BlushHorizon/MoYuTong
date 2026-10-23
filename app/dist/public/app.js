@@ -273,7 +273,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.1'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.2'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -531,10 +531,10 @@ async function checkUpdate(manual = true) {
       el.textContent = `状态：v${r.latest} 已下载，SHA256 校验通过（${Math.round((d.bytes || 0) / 1024)} KB）`;
       el.className = 'ds-status ok';
     }
-    if (confirm(`v${r.latest} 已下载完成，是否立即安装？\n\n安装会结束当前群崽窗口，装好后请重新打开。`)) {
+    if (confirm(`v${r.latest} 已下载完成，是否立即安装？\n\n安装程序会打开，按提示完成即可；安装器会先结束旧版本，并在完成后启动新版本。`)) {
       const inst = await api('/api/update/install', { method: 'POST', body: '{}' });
       if (!inst.ok) throw new Error(inst.error || '安装失败');
-      if (el) el.textContent = '状态：安装程序已启动，群崽即将关闭…';
+      if (el) el.textContent = '状态：安装程序正在打开，请按提示完成安装…';
       setTimeout(() => { try { window.close(); } catch { /* 忽略 */ } }, 2500);
     } else if (el) {
       el.textContent += ' ｜ 已选择稍后安装';
@@ -810,4 +810,5 @@ function init() {
 }
 
 init();
+
 

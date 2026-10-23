@@ -1,26 +1,27 @@
-# 群崽 QunZai v1.4.1 发布记录
+# 群崽 QunZai v1.4.2 发布记录
 
 发布日期：2026-10-23
-状态：修复内嵌 DeepSeek 弹窗与登录态检测；官网与 GitHub Releases 已同步。
+状态：修复自动更新安装后旧服务不退出；官网与 GitHub Releases 已同步。
 
 ## 安装包
 
 | 项目 | 值 |
 |---|---|
-| 文件 | `群崽QunZai安装包-v1.4.1.exe` |
-| 大小 | 344,426 B / 336.4 KB |
-| SHA256 | `df979ec2f561533b06289cbc51063633464db778a4c12ec3dfa60f188767c886` |
+| 文件 | `群崽QunZai安装包-v1.4.2.exe` |
+| 大小 | 345,187 B / 337.1 KB |
+| SHA256 | `014cff78bee484717d812b27349707d7e8efe4ee1863307e4f7976b9a3121ed2` |
 | 官网下载 | https://blushhorizon.github.io/QunZai/ |
 | GitHub Releases | https://github.com/BlushHorizon/QunZai/releases |
 
 ## 本版内容
 
-- 内嵌模式启动时等待宿主 WebView2 的 CDP，不再回退启动外部 Edge
-- 内嵌模式禁用 `/json/new` 新开 target，避免新建对话时弹出额外 DeepSeek 窗口
-- 「① 打开 DeepSeek 登录」改为直接切到内嵌 DeepSeek 标签页
-- 登录成功后重新探测页面状态，无需重启服务即可从 `need-login` 恢复为 `ready`
-- 保留 WebView2 登录态；会话过期时只需在内嵌页扫码登录一次，之后会记住
-- 继续修复旧版配置升级后自动更新地址为空
+- 安装器覆盖安装前会结束旧的 Node 服务，不再留下继续跑旧代码的进程
+- 自动更新改为打开可见的安装程序，不再静默启动后没有任何界面
+- 安装器留出 1 秒让更新接口返回页面，再停止旧宿主和旧服务
+- 静默安装完成后自动启动新版桌面宿主；交互安装由完成页启动
+- 延续 v1.4.1：内嵌模式不启动外部 Edge、不新开 DeepSeek target
+- 延续 v1.4.1：登录按钮直接切内嵌 DeepSeek，登录成功后无需重启恢复状态
+- 保留 DeepSeek 登录态；会话过期时需在内嵌页扫码一次
 
 ## 隐私与安装包复核
 
@@ -32,4 +33,4 @@
 
 ## 历史版本
 
-`v1.0.0` 至 `v1.4.1` 的安装包均保留在 GitHub 仓库 `releases/` 与本地 `releases/history/` 归档中；v1.4.1 Release 正文提供全部历史版本直链，v1.0.0 保留独立 Release。
+`v1.0.0` 至 `v1.4.2` 的安装包均保留在 GitHub 仓库 `releases/` 与本地 `releases/history/` 归档中；v1.4.2 Release 正文提供全部历史版本直链，v1.0.0 保留独立 Release。

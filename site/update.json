@@ -1,12 +1,12 @@
 {
-  "version": "1.4.1",
-  "notes": "群崽 v1.4.1：修复内嵌 DeepSeek 新建对话时偶尔弹出外部窗口；打开登录按钮直接切到内嵌 DeepSeek 标签页；登录成功后无需重启即可恢复；旧版配置升级自动更新地址保持有效。DeepSeek 登录态过期时需在内嵌页扫码一次，之后会记住。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。历史版本见 GitHub Releases。",
+  "version": "1.4.2",
+  "notes": "群崽 v1.4.2：修复自动更新安装后旧服务不退出、版本不生效的问题；安装器现在会显示界面、停止旧服务并在完成后启动新版本。延续 v1.4.1 的内嵌 DeepSeek 修复：不再弹出外部窗口，登录按钮直接切到内嵌页，登录后无需重启。DeepSeek 登录态过期时需扫码一次，之后会记住。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。历史版本见 GitHub Releases。",
   "pubDate": "2026-10-23",
   "files": [
     {
       "url": "https://blushhorizon.github.io/QunZai/assets/%E7%BE%A4%E5%B4%BDQunZai%E5%AE%89%E8%A3%85%E5%8C%85.exe",
-      "sha256": "df979ec2f561533b06289cbc51063633464db778a4c12ec3dfa60f188767c886",
-      "size": 344426
+      "sha256": "014cff78bee484717d812b27349707d7e8efe4ee1863307e4f7976b9a3121ed2",
+      "size": 345187
     }
   ]
 }
