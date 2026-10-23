@@ -14,7 +14,7 @@ SetCompressor /SOLID lzma
 !define REGKEY "Software\QunZai"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QunZai"
 !ifndef VERSION
-  !define VERSION "1.4.2"
+  !define VERSION "1.4.3"
 !endif
 
 Name "${APPNAME}"
@@ -57,10 +57,11 @@ Section "主程序" SecMain
   Pop $0
 
   ; 只结束 QunZaiHost 不够：Node 服务是独立进程，会继续跑旧代码。
-  ; launcher -Stop 会按 runtime/端口确认是 server\server.js 后再结束。
-  IfFileExists "$INSTDIR\launcher.ps1" 0 noStopService
-    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\launcher.ps1" -Stop' $0
-  noStopService:
+  ; 用安装器自带的停止脚本，不再依赖旧版 launcher.ps1 —— 旧版 -Stop 会
+  ; 逐个扫描 60 个端口，自动更新时可能卡几十秒。
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\stop-service.ps1 "stop-service.ps1"
+  ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\stop-service.ps1" -Root "$INSTDIR"' $0
 
   ; ---------- Node.js 检测（22+；网页驱动依赖内置 WebSocket） ----------
   nsExec::ExecToStack 'cmd /c node -e "process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)"'
@@ -165,3 +166,4 @@ Section "Uninstall"
   DeleteRegKey HKCU "${UNINSTKEY}"
   DeleteRegKey HKCU "${REGKEY}"
 SectionEnd
+

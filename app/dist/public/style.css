@@ -177,7 +177,7 @@ body {
 
 .panels {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.5fr);
+  grid-template-columns: minmax(300px, 0.9fr) minmax(500px, 1.9fr);
   gap: 14px;
   min-height: 0;
 }
@@ -264,6 +264,94 @@ body {
   overflow-y: auto;
   max-height: 460px;
   padding: 6px;
+}
+
+/* 右栏一分为二：左动态，右 DeepSeek 内嵌 */
+.feed-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  min-height: 360px;
+  min-width: 0;
+}
+
+.feed-col,
+.ds-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.feed-col {
+  border-right: 1px solid var(--line);
+}
+
+.feed-split .panel-head {
+  flex: none;
+}
+
+.feed-split .feed {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+}
+
+.ds-col .panel-head {
+  justify-content: space-between;
+}
+
+.ds-badge {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(53, 200, 255, 0.12);
+  color: var(--accent);
+}
+
+.ds-slot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background:
+    radial-gradient(500px 220px at 70% 0%, rgba(53, 200, 255, 0.05), transparent 70%),
+    var(--bg-soft);
+}
+
+.ds-slot-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.ds-slot-fallback p {
+  max-width: 300px;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.ds-slot-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+html.qz-host .ds-slot-fallback {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .feed-split { grid-template-columns: 1fr; }
+  .feed-col { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 
 .feed-item {
@@ -422,6 +510,105 @@ textarea { resize: vertical; }
 .ghost-btn:hover { color: var(--text); }
 .primary-btn { background: var(--accent); border: none; color: #04222f; font-weight: 700; }
 .primary-btn:hover { filter: brightness(1.1); }
+
+/* ---------------- 页面内提示框 ---------------- */
+.qz-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 8, 14, 0.66);
+  backdrop-filter: blur(4px);
+}
+
+.qz-dialog-card {
+  width: min(460px, calc(100vw - 32px));
+  overflow: hidden;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58);
+  animation: qz-dialog-in 0.16s ease-out;
+}
+
+@keyframes qz-dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.qz-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 18px 10px;
+}
+
+.qz-dialog-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(53, 200, 255, 0.12);
+  border: 1px solid rgba(53, 200, 255, 0.28);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 15px;
+}
+.qz-dialog-icon.ok { background: rgba(47, 212, 122, 0.12); border-color: rgba(47, 212, 122, 0.3); color: var(--ok); }
+.qz-dialog-icon.warn { background: rgba(255, 176, 46, 0.12); border-color: rgba(255, 176, 46, 0.3); color: var(--warn); }
+.qz-dialog-icon.err { background: rgba(255, 95, 86, 0.12); border-color: rgba(255, 95, 86, 0.3); color: var(--bad); }
+
+.qz-dialog-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.qz-dialog-x {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.qz-dialog-x:hover { background: rgba(255, 95, 86, 0.12); color: var(--bad); }
+
+.qz-dialog-body {
+  padding: 0 18px 18px 58px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.qz-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 520px) {
+  .qz-dialog-body { padding-left: 18px; }
+  .qz-dialog-foot .ghost-btn, .qz-dialog-foot .primary-btn { flex: 1; }
+}
 
 /* ---------------- 响应式 ---------------- */
 @media (max-width: 1080px) {

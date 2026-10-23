@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
@@ -22,7 +22,7 @@
         <span class="logo">◉</span>
         <span class="title">群崽 <em>QunZai</em></span>
         <span class="subtitle">QQ 智能体监控台</span>
-        <span class="version" id="appVersion">v1.4.0</span>
+        <span class="version" id="appVersion">v1.4.3</span>
       </div>
       <div class="topbar-right">
         <div class="pill" id="qqStatusPill" title="QQ 接入状态">
@@ -74,8 +74,22 @@
           <ul id="overviewList" class="overview"></ul>
         </div>
         <div class="panel feed-panel">
-          <div class="panel-head">实时动态 <span class="live-dot" title="SSE 实时推送"></span></div>
-          <ul id="feedList" class="feed"></ul>
+          <div class="feed-split">
+            <section class="feed-col">
+              <div class="panel-head">实时动态 <span class="live-dot" title="SSE 实时推送"></span></div>
+              <ul id="feedList" class="feed"></ul>
+            </section>
+            <section class="ds-col">
+              <div class="panel-head">DeepSeek <span class="ds-badge">内嵌</span></div>
+              <div class="ds-slot" id="dsSlot">
+                <div class="ds-slot-fallback" id="dsSlotFallback">
+                  <div class="ds-slot-title">DeepSeek 内嵌窗口</div>
+                  <p>桌面版会在这里直接显示 DeepSeek，和实时动态各占一半。</p>
+                  <a class="mini-btn alt" href="https://chat.deepseek.com" target="_blank" rel="noopener">在浏览器打开 DeepSeek</a>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
     </main>
@@ -275,7 +289,7 @@
 
         <h4>关于与声明</h4>
         <div class="about-box">
-          <p><b>群崽 QunZai</b> <span id="aboutVersion">v1.4.0</span> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
+          <p><b>群崽 QunZai</b> <span id="aboutVersion">v1.4.3</span> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
           <p>· 本项目<b>不是反代、没有第三方中转、没有逆向 DeepSeek 网页</b>；原理是用 Node 连接本机浏览器调试端口（CDP）模拟操作，<b>这与反代一样均违反 DeepSeek 用户协议，账号可能被临时限制或封禁</b>。</p>
           <p>· 它会把 AI 生成的内容<b>自动发到 QQ</b>，无审核无黑名单，<b>请勿用于骚扰、刷屏、恶作剧，建议使用小号</b>。</p>
           <p>· 运行时会自动拉起 Edge 并连接调试端口，<b>可能被杀软误报为木马</b>；源码公开可自行审计，确认为误报请加白名单。</p>
@@ -297,6 +311,23 @@
     </div>
   </div>
 
+  <!-- 页面内提示框：替换浏览器原生 alert/confirm，避免出现 127.0.0.1:8787 标题栏 -->
+  <div class="qz-dialog hidden" id="qzDialog" role="dialog" aria-modal="true" aria-labelledby="qzDialogTitle">
+    <div class="qz-dialog-card">
+      <div class="qz-dialog-head">
+        <div class="qz-dialog-icon" id="qzDialogIcon">i</div>
+        <div class="qz-dialog-title" id="qzDialogTitle">提示</div>
+        <button class="qz-dialog-x" id="qzDialogX" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="qz-dialog-body" id="qzDialogBody"></div>
+      <div class="qz-dialog-foot">
+        <button class="ghost-btn hidden" id="qzDialogCancel" type="button">取消</button>
+        <button class="primary-btn" id="qzDialogOk" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
+

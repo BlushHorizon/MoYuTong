@@ -142,29 +142,36 @@ if ($Stop) {
     $rt = Read-Runtime
     if ($rt -and $rt.serverPort) { $candidatePorts += [int]$rt.serverPort }
     $candidatePorts += $port
-    for ($i = 1; $i -le 60; $i++) { $candidatePorts += ($port + $i) }
-    $candidatePorts = $candidatePorts | Where-Object { $_ -gt 0 -and $_ -le 65535 } | Select-Object -Unique
+    $candidatePorts = @($candidatePorts | Where-Object { $_ -gt 0 -and $_ -le 65535 } | Select-Object -Unique)
 
-    # 2) 按监听端口找进程（最可靠）；只结束确认是群崽的 node 进程
+    # 2) 一次拿到所有监听端口，避免对 60 个端口逐个 netstat（旧版会卡几十秒）
+    $listeners = @{}
+    try {
+        netstat -ano | Select-String 'LISTENING' | ForEach-Object {
+            $parts = @($_.Line -split '\s+' | Where-Object { $_ })
+            if ($parts.Count -ge 5 -and $parts[1] -match ':(\d+)$' -and $parts[-1] -match '^\d+$') {
+                $listeners[[int]$Matches[1]] = [int]$parts[-1]
+            }
+        }
+    } catch { }
+
+    # 3) 按 runtime/配置端口找进程；只结束确认是群崽的 node 进程
     foreach ($p in $candidatePorts) {
-        if (-not (Test-Port $p)) { continue }
+        if (-not $listeners.ContainsKey($p)) { continue }
+        $portPid = [int]$listeners[$p]
         try {
-            $line = netstat -ano | Select-String ('127\.0\.0\.1:' + $p) | Select-String 'LISTENING' | Select-Object -First 1
-            if (-not $line) { continue }
-            $portPid = ($line -split '\s+')[-1]
-            if (-not ($portPid -and $portPid -match '^\d+$')) { continue }
             $procInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$portPid" -ErrorAction SilentlyContinue
             $cmd = if ($procInfo) { [string]$procInfo.CommandLine } else { '' }
             if ($cmd -match 'server[\\/]server\.js') {
-                Stop-Process -Id ([int]$portPid) -Force -ErrorAction SilentlyContinue
+                Stop-Process -Id $portPid -Force -ErrorAction SilentlyContinue
                 $killed++
             } else {
                 Write-Host "端口 $p 被其他程序占用（PID $portPid），没有结束它。" -ForegroundColor Yellow
             }
         } catch { }
     }
-    Start-Sleep -Milliseconds 500
-    # 3) 兜底：只找本程序目录下 server\server.js 的 node 进程
+
+    # 4) 兜底：只找本机命令行里 server\server.js 的 node 进程
     try {
         Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
             Where-Object { $_.CommandLine -and $_.CommandLine -match 'server[\\/]server\.js' } |
@@ -173,8 +180,9 @@ if ($Stop) {
                 $killed++
             }
     } catch { }
-    # 4) 等候选端口释放 & 守护进程退出
-    for ($i = 0; $i -lt 12; $i++) {
+
+    # 5) 等候选端口释放（最多约 3 秒）
+    for ($i = 0; $i -lt 10; $i++) {
         $still = @($candidatePorts | Where-Object { Test-Port $_ })
         if ($still.Count -eq 0) { break }
         Start-Sleep -Milliseconds 300

@@ -22,6 +22,141 @@ function showDeepSeekTab() {
   } catch (e) { /* 非桌面宿主忽略 */ }
 }
 
+/* ---------------- DeepSeek 内嵌到实时动态右半边 ---------------- */
+const IN_DESKTOP_HOST = !!(window.chrome && window.chrome.webview && window.chrome.webview.postMessage);
+if (IN_DESKTOP_HOST) document.documentElement.classList.add('qz-host');
+
+let dsSlotSyncPending = false;
+
+function dsSlotBlocked() {
+  const sm = $('settingsModal');
+  const qd = $('qzDialog');
+  return !!((sm && !sm.classList.contains('hidden')) || (qd && !qd.classList.contains('hidden')));
+}
+
+/** 把 DeepSeek 占位区的实际位置发给桌面宿主，由宿主把内嵌 WebView2 盖上去 */
+function syncDeepSeekSlot() {
+  if (!IN_DESKTOP_HOST) return;
+  const slot = $('dsSlot');
+  if (!slot) return;
+  dsSlotSyncPending = false;
+  const r = slot.getBoundingClientRect();
+  const visible = !dsSlotBlocked() &&
+    r.bottom > 0 && r.top < window.innerHeight &&
+    r.right > 0 && r.left < window.innerWidth;
+  try {
+    window.chrome.webview.postMessage({
+      type: 'deepseek-bounds',
+      // 留 6px 内边距，让卡片边框和圆角露出来
+      x: Math.round(r.left) + 6,
+      y: Math.round(r.top) + 6,
+      width: Math.max(1, Math.round(r.width) - 12),
+      height: Math.max(1, Math.round(r.height) - 12),
+      visible
+    });
+  } catch (e) { /* 非桌面宿主忽略 */ }
+}
+
+function scheduleDeepSeekSlotSync() {
+  if (!IN_DESKTOP_HOST || dsSlotSyncPending) return;
+  dsSlotSyncPending = true;
+  if (window.requestAnimationFrame) requestAnimationFrame(syncDeepSeekSlot);
+  else setTimeout(syncDeepSeekSlot, 16);
+}
+window.qzSyncDeepSeek = syncDeepSeekSlot;
+
+function initDeepSeekSlot() {
+  const slot = $('dsSlot');
+  if (!slot) return;
+  window.addEventListener('resize', scheduleDeepSeekSlotSync, { passive: true });
+  window.addEventListener('scroll', scheduleDeepSeekSlotSync, { passive: true });
+  document.addEventListener('scroll', scheduleDeepSeekSlotSync, true);
+  if (window.ResizeObserver) {
+    try { new ResizeObserver(scheduleDeepSeekSlotSync).observe(slot); } catch (e) { /* 忽略 */ }
+  }
+  const mo = new MutationObserver(scheduleDeepSeekSlotSync);
+  ['settingsModal', 'qzDialog'].forEach((id) => {
+    const el = $(id);
+    if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+  scheduleDeepSeekSlotSync();
+}
+
+/* ---------------- 页面内提示框（替代原生 alert/confirm） ---------------- */
+let qzDialogActive = null;
+const qzDialogQueue = [];
+
+function uiAlert(message, opts = {}) {
+  return showQzDialog({ ...opts, message, showCancel: false });
+}
+
+function uiConfirm(message, opts = {}) {
+  return showQzDialog({ ...opts, message, showCancel: true });
+}
+
+function showQzDialog(opts = {}) {
+  return new Promise((resolve) => {
+    qzDialogQueue.push({ opts, resolve });
+    if (!qzDialogActive) drainQzDialog();
+  });
+}
+
+function drainQzDialog() {
+  if (qzDialogActive || !qzDialogQueue.length) return;
+  const item = qzDialogQueue.shift();
+  qzDialogActive = item;
+  const opts = item.opts;
+  const type = opts.type || 'info';
+  const icon = { info: 'i', ok: '✓', warn: '!', err: '×' }[type] || 'i';
+  const iconEl = $('qzDialogIcon');
+  iconEl.textContent = icon;
+  iconEl.className = 'qz-dialog-icon ' + type;
+  $('qzDialogTitle').textContent = opts.title || '提示';
+  $('qzDialogBody').textContent = String(opts.message || '');
+  $('qzDialogOk').textContent = opts.okText || '确定';
+  $('qzDialogCancel').textContent = opts.cancelText || '取消';
+  $('qzDialogCancel').classList.toggle('hidden', !opts.showCancel);
+  $('qzDialog').classList.remove('hidden');
+  // 如果窗口已最小化到托盘，让宿主先把窗口拉回来
+  try {
+    if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+      window.chrome.webview.postMessage({ type: 'modal' });
+    }
+  } catch (e) { /* 非桌面宿主忽略 */ }
+  setTimeout(() => { try { $('qzDialogOk').focus(); } catch (e) { /* 忽略 */ } }, 30);
+}
+
+function finishQzDialog(result) {
+  if (!qzDialogActive) return;
+  const item = qzDialogActive;
+  qzDialogActive = null;
+  $('qzDialog').classList.add('hidden');
+  item.resolve(!!result);
+  setTimeout(drainQzDialog, 0);
+}
+
+function initQzDialog() {
+  $('qzDialogOk').addEventListener('click', () => finishQzDialog(true));
+  $('qzDialogCancel').addEventListener('click', () => finishQzDialog(false));
+  $('qzDialogX').addEventListener('click', () => {
+    finishQzDialog(!(qzDialogActive && qzDialogActive.opts.showCancel));
+  });
+  $('qzDialog').addEventListener('click', (e) => {
+    if (e.target !== $('qzDialog')) return;
+    finishQzDialog(!(qzDialogActive && qzDialogActive.opts.showCancel));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!qzDialogActive) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      finishQzDialog(false);
+    } else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      finishQzDialog(true);
+    }
+  });
+}
+
 function applyTheme(theme, persist) {
   const next = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
@@ -273,7 +408,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.2'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.3'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -348,21 +483,21 @@ async function refreshStickers() {
   }
 }
 
-function delSticker(key) {
-  if (!confirm('删除这个表情包素材？')) return;
+async function delSticker(key) {
+  if (!(await uiConfirm('删除这个表情包素材？', { title: '删除表情包', okText: '删除', cancelText: '取消', type: 'warn' }))) return;
   api('/api/stickers', { method: 'DELETE', body: JSON.stringify({ key }) })
     .then(() => refreshStickers())
-    .catch((e) => alert('删除失败：' + e.message));
+    .catch((e) => uiAlert('删除失败：' + e.message, { title: '操作失败', type: 'err' }));
 }
 
-function clearStickers() {
-  if (!confirm('清空全部表情包素材？机器人之后收到表情包会自动重新收藏。')) return;
+async function clearStickers() {
+  if (!(await uiConfirm('清空全部表情包素材？机器人之后收到表情包会自动重新收藏。', { title: '清空表情包', okText: '清空', cancelText: '取消', type: 'warn' }))) return;
   api('/api/stickers/clear', { method: 'POST', body: '{}' })
     .then((r) => {
-      alert(`已清空 ${r.removed} 个素材`);
+      uiAlert(`已清空 ${r.removed} 个素材`, { title: '清空完成', type: 'ok' });
       refreshStickers();
     })
-    .catch((e) => alert('清空失败：' + e.message));
+    .catch((e) => uiAlert('清空失败：' + e.message, { title: '操作失败', type: 'err' }));
 }
 
 function testSticker() {
@@ -373,12 +508,12 @@ function testSticker() {
     .then((r) => {
       btn.disabled = false;
       btn.textContent = '发一个到我 QQ 看看';
-      alert(`✅ 已发到 ${r.to}（${r.sent.kind === 'mface' ? '商城表情' : '图片'}「${r.sent.text}」）——去 QQ 看看`);
+      uiAlert(`✅ 已发到 ${r.to}（${r.sent.kind === 'mface' ? '商城表情' : '图片'}「${r.sent.text}」）——去 QQ 看看`);
     })
     .catch((e) => {
       btn.disabled = false;
       btn.textContent = '发一个到我 QQ 看看';
-      alert('❌ ' + e.message);
+      uiAlert('❌ ' + e.message);
     });
 }
 
@@ -391,12 +526,12 @@ function openWebSite() {
     .then((r) => {
       btn.disabled = false;
       btn.textContent = '① 打开该网站（首次需登录）';
-      alert(`已打开「${r.siteName}」：${r.url}\n\n首次使用请在弹出的浏览器窗口里登录一次，登录态会长期记住。\n之后切到「保存」，机器人就用这个模型回复了。`);
+      uiAlert(`已打开「${r.siteName}」：${r.url}\n\n首次使用请在弹出的浏览器窗口里登录一次，登录态会长期记住。\n之后切到「保存」，机器人就用这个模型回复了。`);
     })
     .catch((e) => {
       btn.disabled = false;
       btn.textContent = '① 打开该网站（首次需登录）';
-      alert('❌ ' + e.message);
+      uiAlert('❌ ' + e.message);
     });
 }
 
@@ -486,9 +621,9 @@ async function stopEngine() {
   btn.textContent = '停止中…';
   try {
     const r = await api('/api/engine/stop', { method: 'POST', body: '{}' });
-    alert(r.ok ? `已停止本次启动的运行时（PID ${r.pid}）` : r.error);
+    uiAlert(r.ok ? `已停止本次启动的运行时（PID ${r.pid}）` : r.error);
   } catch (e) {
-    alert('停止失败：' + e.message);
+    uiAlert('停止失败：' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = '停止本次启动';
@@ -508,18 +643,18 @@ async function checkUpdate(manual = true) {
         ? `检查失败：${r.error || '未知错误'}`
         : `未配置更新地址：${r.error || ''}`;
       if (el) { el.textContent = msg; el.className = 'ds-status ' + (r.configured ? 'err' : 'warn'); }
-      if (manual) alert(msg);
+      if (manual) uiAlert(msg, { title: '检查更新失败', type: 'err' });
       return false;
     }
     if (!r.updateAvailable) {
       if (el) { el.textContent = `状态：已是最新版本 v${r.current}`; el.className = 'ds-status ok'; }
-      if (manual) alert(`当前已经是最新版本 v${r.current}。`);
+      if (manual) uiAlert(`当前已经是最新版本 v${r.current}。`, { title: '检查更新', type: 'ok' });
       return false;
     }
 
     if (el) { el.textContent = `状态：发现新版本 v${r.latest}（当前 v${r.current}）`; el.className = 'ds-status warn'; }
     const notes = r.notes ? `\n\n更新说明：\n${String(r.notes).slice(0, 800)}` : '';
-    if (!confirm(`发现新版本 v${r.latest}，当前 v${r.current}。${notes}\n\n是否下载更新？`)) {
+    if (!(await uiConfirm(`发现新版本 v${r.latest}，当前 v${r.current}。${notes}\n\n是否下载更新？`, { title: '发现新版本', okText: '下载更新', cancelText: '暂不更新', type: 'warn' }))) {
       if (el) el.textContent += ' ｜ 已选择不更新';
       return false;
     }
@@ -531,7 +666,7 @@ async function checkUpdate(manual = true) {
       el.textContent = `状态：v${r.latest} 已下载，SHA256 校验通过（${Math.round((d.bytes || 0) / 1024)} KB）`;
       el.className = 'ds-status ok';
     }
-    if (confirm(`v${r.latest} 已下载完成，是否立即安装？\n\n安装程序会打开，按提示完成即可；安装器会先结束旧版本，并在完成后启动新版本。`)) {
+    if (await uiConfirm(`v${r.latest} 已下载完成，是否立即安装？\n\n安装程序会打开，按提示完成即可；安装器会先结束旧版本，并在完成后启动新版本。`, { title: '安装更新', okText: '立即安装', cancelText: '稍后安装', type: 'warn' })) {
       const inst = await api('/api/update/install', { method: 'POST', body: '{}' });
       if (!inst.ok) throw new Error(inst.error || '安装失败');
       if (el) el.textContent = '状态：安装程序正在打开，请按提示完成安装…';
@@ -542,7 +677,7 @@ async function checkUpdate(manual = true) {
     return true;
   } catch (e) {
     if (el) { el.textContent = '更新失败：' + e.message; el.className = 'ds-status err'; }
-    if (manual) alert('更新失败：' + e.message);
+    if (manual) uiAlert('更新失败：' + e.message, { title: '更新失败', type: 'err' });
     return false;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '检查更新'; }
@@ -625,14 +760,14 @@ async function saveSettings() {
     }
   };
   const resp = await api('/api/settings', { method: 'POST', body: JSON.stringify(payload) }).catch((e) => {
-    alert('保存失败：' + e.message);
+    uiAlert('保存失败：' + e.message);
     return null;
   });
   if (!resp) return;
   $('settingsModal').classList.add('hidden');
   await refreshStatus();
   /* QQ 接入参数变了 → 服务端已自动重建适配器重连，明确告知，免得以为改了没生效 */
-  if (resp && resp.qqReconnected) alert('设置已保存。\n\n正在按新地址重连 QQ：\n' + payload.qq.onebot.wsUrl + '\n\n看顶部 QQ 状态，等它变成「已连接」即可。');
+  if (resp && resp.qqReconnected) uiAlert('设置已保存。\n\n正在按新地址重连 QQ：\n' + payload.qq.onebot.wsUrl + '\n\n看顶部 QQ 状态，等它变成「已连接」即可。');
 }
 
 /* ---------------- SSE ---------------- */
@@ -721,9 +856,11 @@ function connectEvents() {
 
 /* ---------------- 初始化 ---------------- */
 function init() {
+  initQzDialog();
+  initDeepSeekSlot();
   initTheme();
   $('btnSettings').addEventListener('click', () => {
-    openSettings().catch((e) => alert('读取设置失败：' + e.message));
+    openSettings().catch((e) => uiAlert('读取设置失败：' + e.message));
   });
   $('btnSaveSettings').addEventListener('click', saveSettings);
   $('setProvider').addEventListener('change', () => { toggleProviderView(); refreshDsStatus(); });
@@ -738,7 +875,7 @@ function init() {
       await api('/api/ai/deepseek/open', { method: 'POST' });
       setTimeout(refreshDsStatus, 2500);
     } catch (err) {
-      alert('打开失败：' + err.message);
+      uiAlert('打开失败：' + err.message);
     } finally {
       // 内嵌模式直接切到桌面宿主里的 DeepSeek 标签页，
       // 不再让服务端去 /json/new 开新窗口。
@@ -756,7 +893,7 @@ function init() {
     } catch (err) {
       e.target.textContent = '② 新建对话';
       showDeepSeekTab();
-      alert('新建对话失败：' + err.message);
+      uiAlert('新建对话失败：' + err.message);
     }
     refreshDsStatus();
   });
@@ -779,7 +916,7 @@ function init() {
       await refreshStatus();
     } catch (err) {
       e.target.checked = !e.target.checked;
-      alert('切换失败：' + err.message);
+      uiAlert('切换失败：' + err.message);
     }
   });
   document.querySelectorAll('[data-close]').forEach((b) => {
@@ -810,5 +947,6 @@ function init() {
 }
 
 init();
+
 
 

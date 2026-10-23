@@ -71,8 +71,15 @@ namespace QunZai
         private bool _serviceRunning;
         private bool _serviceBusy;
         private bool _serviceStoppedByUser;
+        private Rectangle _dsSlotRect;
+        private bool _dsSlotRectReady;
+        private bool _dsSlotVisible = true;
         private readonly string _launcher;
         private readonly string _profileDir;
+        private NotifyIcon _tray;
+        private ContextMenuStrip _trayMenu;
+        private bool _trayTipShown;
+        private bool _reallyExit;
 
         private static readonly Color DarkBg = Color.FromArgb(10, 14, 20);
         private static readonly Color DarkPanel = Color.FromArgb(15, 21, 32);
@@ -121,6 +128,8 @@ namespace QunZai
             }
             catch { }
 
+            SetupTray();
+
             _tabBar = new FlowLayoutPanel();
             _tabBar.Dock = DockStyle.Fill;
             _tabBar.BackColor = _bg;
@@ -129,7 +138,7 @@ namespace QunZai
             _tabBar.Padding = new Padding(12, 6, 0, 0);
 
             _dashboardTab = CreateTab("监控台");
-            _deepseekTab = CreateTab("DeepSeek · 内嵌");
+            _deepseekTab = CreateTab("DeepSeek · 全屏");
             _dashboardTab.Click += delegate { SelectTab(false); };
             _deepseekTab.Click += delegate { SelectTab(true); };
             _tabBar.Controls.Add(_dashboardTab);
@@ -173,9 +182,15 @@ namespace QunZai
             _dashboard.Dock = DockStyle.Fill;
             _dashboard.DefaultBackgroundColor = _bg;
             _dashboard.Visible = false;
+            _dashboard.SizeChanged += delegate
+            {
+                if (_webReady && !_showDeepSeek) RequestDeepSeekSync();
+            };
             _contentHost.Controls.Add(_dashboard);
 
             _deepseek = new WebView2();
+            // 先铺满内容区保证 WebView2 有非零视口；页面把「实时动态」右半边
+            // 占位区坐标发上来后，再改成绝对定位盖到占位区上。
             _deepseek.Dock = DockStyle.Fill;
             _deepseek.DefaultBackgroundColor = _bg;
             // WebView2 初始化完成前先收起，避免白色空窗口盖住启动提示。
@@ -227,6 +242,69 @@ namespace QunZai
             if (_loading != null) _loading.BringToFront();
             Shown += async delegate { await InitializeAsync(); };
             FormClosing += OnClosing;
+            Resize += delegate
+            {
+                if (WindowState != FormWindowState.Minimized) return;
+                HideToTray();
+            };
+        }
+
+        private void HideToTray()
+        {
+            if (_tray == null) return;
+            HostLog.Write("hide to tray");
+            Hide();
+            if (!_trayTipShown)
+            {
+                _trayTipShown = true;
+                try { _tray.ShowBalloonTip(1800, "群崽 QunZai", "已最小化到托盘，双击图标恢复窗口。", ToolTipIcon.Info); } catch { }
+            }
+        }
+
+        private void SetupTray()
+        {
+            try
+            {
+                _trayMenu = new ContextMenuStrip();
+                _trayMenu.Items.Add("显示主窗口", null, delegate { ShowFromTray(); });
+                _trayMenu.Items.Add(new ToolStripSeparator());
+                _trayMenu.Items.Add("退出群崽", null, delegate { _reallyExit = true; Close(); });
+
+                _tray = new NotifyIcon();
+                _tray.Icon = Icon ?? SystemIcons.Application;
+                _tray.Text = "群崽 QunZai · 双击恢复窗口";
+                _tray.ContextMenuStrip = _trayMenu;
+                _tray.Visible = true;
+                _tray.DoubleClick += delegate { ShowFromTray(); };
+                _tray.BalloonTipTitle = "群崽 QunZai";
+                _tray.BalloonTipText = "窗口已最小化到托盘，双击图标恢复。";
+                HostLog.Write("tray icon ready");
+            }
+            catch (Exception ex)
+            {
+                HostLog.Write("tray icon failed: " + ex.Message);
+            }
+        }
+
+        private void ShowFromTray()
+        {
+            try
+            {
+                if (IsDisposed) return;
+                HostLog.Write("show from tray");
+                Show();
+                ShowInTaskbar = true;
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                Activate();
+                BringToFront();
+                // 从托盘/后台弹提示时，Windows 可能不给前台焦点；
+                // 短暂置顶再取消，保证窗口真的出现在用户眼前。
+                TopMost = true;
+                TopMost = false;
+                if (_dashboard != null && _dashboard.Visible) _dashboard.Focus();
+                RequestDeepSeekSync();
+            }
+            catch { }
         }
 
         private Label CreateTab(string text)
@@ -248,10 +326,22 @@ namespace QunZai
             _showDeepSeek = showDeepSeek;
             if (_webReady && _serviceRunning)
             {
-                // DeepSeek 始终保留尺寸，切回工作台只压在后面；隐藏成可见性=false
-                // 会让网页视口变成 0，新建对话后输入/发送会卡住。
+                // DeepSeek 始终保持非零尺寸；隐藏成可见性=false 会让网页视口变成 0，
+                // 新建对话后输入/发送会卡住。工作台模式下把它盖到页面右半边。
                 _dashboard.Visible = !showDeepSeek;
                 _deepseek.Visible = true;
+                if (showDeepSeek)
+                {
+                    _deepseek.Dock = DockStyle.Fill;
+                    _deepseek.Bounds = _contentHost.ClientRectangle;
+                    _deepseek.BringToFront();
+                }
+                else
+                {
+                    _dashboard.BringToFront();
+                    ApplyDeepSeekSlot();
+                    RequestDeepSeekSync();
+                }
             }
             else
             {
@@ -264,12 +354,41 @@ namespace QunZai
             _deepseekTab.BackColor = showDeepSeek ? _panel : _bg;
             _dashboardTab.ForeColor = showDeepSeek ? _dim : _text;
             _deepseekTab.ForeColor = showDeepSeek ? _text : _dim;
-            if (_webReady && _serviceRunning)
-            {
-                if (showDeepSeek) _deepseek.BringToFront();
-                else _dashboard.BringToFront();
-            }
             if (_loading != null && _loading.Visible) _loading.BringToFront();
+        }
+
+        /// <summary>页面把「实时动态」右半边占位区的坐标发上来后，把内嵌 WebView2 盖上去。</summary>
+        private void ApplyDeepSeekSlot()
+        {
+            if (_showDeepSeek || !_webReady || !_serviceRunning || !_dsSlotRectReady) return;
+            _deepseek.Dock = DockStyle.None;
+            if (_dsSlotVisible)
+            {
+                _deepseek.Bounds = _dsSlotRect;
+                _deepseek.Visible = true;
+                _deepseek.BringToFront();
+            }
+            else
+            {
+                // 被设置弹窗遮挡或在屏幕外时，不能把尺寸设为 0；平移出父容器即可。
+                _deepseek.Bounds = new Rectangle(
+                    -_dsSlotRect.Width - 80,
+                    _dsSlotRect.Top,
+                    _dsSlotRect.Width,
+                    _dsSlotRect.Height);
+                _deepseek.Visible = true;
+            }
+        }
+
+        /// <summary>让页面重新上报 DeepSeek 占位区位置（窗口缩放、切回工作台时用）。</summary>
+        private async void RequestDeepSeekSync()
+        {
+            try
+            {
+                if (_dashboard != null && _dashboard.CoreWebView2 != null)
+                    await _dashboard.CoreWebView2.ExecuteScriptAsync("window.qzSyncDeepSeek && window.qzSyncDeepSeek()");
+            }
+            catch { }
         }
 
         private void ApplyTheme(bool light)
@@ -827,7 +946,42 @@ namespace QunZai
                         bool light = theme.Groups[1].Value == "light";
                         if (light != _lightTheme) ApplyTheme(light);
                     }
-                    if (!string.IsNullOrEmpty(msg) && msg.IndexOf("deepseek", StringComparison.OrdinalIgnoreCase) >= 0)
+
+                    // 页面把「实时动态」右半边 DeepSeek 占位区的坐标发上来。
+                    // 坐标是 CSS 像素，乘以当前 DPI 比例换成 WinForms 的物理像素。
+                    if (Regex.IsMatch(msg, "\"type\"\\s*:\\s*\"deepseek-bounds\""))
+                    {
+                        Match mx = Regex.Match(msg, "\"x\"\\s*:\\s*(-?\\d+)");
+                        Match my = Regex.Match(msg, "\"y\"\\s*:\\s*(-?\\d+)");
+                        Match mw = Regex.Match(msg, "\"width\"\\s*:\\s*(-?\\d+)");
+                        Match mh = Regex.Match(msg, "\"height\"\\s*:\\s*(-?\\d+)");
+                        Match mv = Regex.Match(msg, "\"visible\"\\s*:\\s*(true|false)");
+                        if (mx.Success && my.Success && mw.Success && mh.Success)
+                        {
+                            double scale = _dashboard.DeviceDpi / 96.0;
+                            if (scale <= 0 || scale > 4) scale = 1.0;
+                            int cssX = int.Parse(mx.Groups[1].Value);
+                            int cssY = int.Parse(my.Groups[1].Value);
+                            int cssW = Math.Max(1, int.Parse(mw.Groups[1].Value));
+                            int cssH = Math.Max(1, int.Parse(mh.Groups[1].Value));
+                            int left = (int)Math.Round(cssX * scale);
+                            int top = (int)Math.Round(cssY * scale);
+                            int right = (int)Math.Round((cssX + cssW) * scale);
+                            int bottom = (int)Math.Round((cssY + cssH) * scale);
+                            _dsSlotRect = new Rectangle(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top));
+                            _dsSlotRectReady = true;
+                            _dsSlotVisible = !mv.Success || mv.Groups[1].Value == "true";
+                            ApplyDeepSeekSlot();
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(msg) && msg.IndexOf("\"modal\"", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        // 页面弹窗出现时，如果窗口在托盘/后台，先把它拉到前台，
+                        // 否则用户只会看到任务栏闪烁或干脆什么都看不到。
+                        try { BeginInvoke(new Action(ShowFromTray)); } catch { ShowFromTray(); }
+                    }
+                    if (!string.IsNullOrEmpty(msg) && Regex.IsMatch(msg, "\"type\"\\s*:\\s*\"deepseek\""))
                     {
                         SelectTab(true);
                         _deepseek.Focus();
@@ -865,6 +1019,7 @@ namespace QunZai
                 _webReady = true;
                 if (_loading != null) _loading.Visible = false;
                 SelectTab(_showDeepSeek);
+                RequestDeepSeekSync();
             };
 
             _dashboard.CoreWebView2.Navigate("http://127.0.0.1:" + _serverPort + "/");
@@ -875,6 +1030,17 @@ namespace QunZai
 
         private void OnClosing(object sender, FormClosingEventArgs e)
         {
+            HostLog.Write("form closing reason=" + e.CloseReason + " reallyExit=" + _reallyExit);
+            // 点右上角 X 时默认收进托盘，QQ 机器人继续在后台运行；
+            // 真要退出请用托盘菜单里的「退出群崽」。
+            if (!_reallyExit && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                HideToTray();
+                return;
+            }
+            try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch { }
+            try { if (_trayMenu != null) { _trayMenu.Dispose(); _trayMenu = null; } } catch { }
             try { _dashboard.Dispose(); } catch { }
             try { _deepseek.Dispose(); } catch { }
             if (!_startedServer) return;
