@@ -113,6 +113,28 @@ body {
 .pill.off .dot { background: var(--bad); }
 .pill.off { color: var(--bad); border-color: rgba(255, 95, 86, 0.35); }
 
+/* 顶栏「停止服务」：只在桌面宿主里显示，浏览器里没有可停的服务 */
+.service-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 95, 86, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 95, 86, 0.10);
+  color: var(--bad);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.service-btn:hover { background: rgba(255, 95, 86, 0.18); border-color: rgba(255, 95, 86, 0.55); }
+.service-btn:disabled { opacity: 0.55; cursor: default; }
+.service-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+html:not(.qz-host) .service-btn { display: none; }
+
 .ai-switch { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
 .ai-switch input { display: none; }
 .ai-switch .track {
@@ -614,6 +636,8 @@ textarea { resize: vertical; }
 @media (max-width: 1080px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
   .panels { grid-template-columns: 1fr; }
+  .subtitle { display: none; }
+  .topbar-right { gap: 10px; }
 }
 @media (max-width: 640px) {
   .cards { grid-template-columns: 1fr; }

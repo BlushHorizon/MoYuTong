@@ -408,7 +408,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.3'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.4'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -862,6 +862,31 @@ function init() {
   $('btnSettings').addEventListener('click', () => {
     openSettings().catch((e) => uiAlert('读取设置失败：' + e.message));
   });
+  $('btnServiceStop').addEventListener('click', async () => {
+    if (!IN_DESKTOP_HOST) return;
+    const ok = await uiConfirm(
+      '停止服务后 QQ 机器人会下线；桌面窗口仍会保留，可以随时重新启动。\n\n确定停止服务吗？',
+      { title: '停止服务', okText: '停止服务', cancelText: '取消', type: 'warn' }
+    );
+    if (!ok) return;
+    const btn = $('btnServiceStop');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="service-dot"></span>停止中…';
+    try {
+      window.chrome.webview.postMessage({ type: 'service-stop' });
+      // 正常情况下服务会停掉、页面被宿主盖住；如果宿主没响应，6 秒后恢复按钮
+      setTimeout(() => {
+        try {
+          btn.disabled = false;
+          btn.innerHTML = '<span class="service-dot"></span>停止服务';
+        } catch (e) { /* 忽略 */ }
+      }, 6000);
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="service-dot"></span>停止服务';
+      uiAlert('停止失败：' + err.message, { title: '停止失败', type: 'err' });
+    }
+  });
   $('btnSaveSettings').addEventListener('click', saveSettings);
   $('setProvider').addEventListener('change', () => { toggleProviderView(); refreshDsStatus(); });
   $('setReplyMode').addEventListener('change', toggleTargetView);
@@ -947,6 +972,7 @@ function init() {
 }
 
 init();
+
 
 
 

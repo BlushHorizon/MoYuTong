@@ -61,7 +61,7 @@ namespace QunZai
         private Label _status;
         private FlowLayoutPanel _tabBar;
         private TableLayoutPanel _topBar;
-        private Button _serviceButton;
+        private Button _startButton;
         private Panel _statusPanel;
         private TableLayoutPanel _layout;
         private Label _loading;
@@ -144,35 +144,16 @@ namespace QunZai
             _tabBar.Controls.Add(_dashboardTab);
             _tabBar.Controls.Add(_deepseekTab);
 
-            _serviceButton = new Button();
-            _serviceButton.Text = "启动中…";
-            _serviceButton.Width = 104;
-            _serviceButton.Height = 28;
-            _serviceButton.FlatStyle = FlatStyle.Flat;
-            _serviceButton.FlatAppearance.BorderSize = 1;
-            _serviceButton.FlatAppearance.BorderColor = _line;
-            _serviceButton.FlatAppearance.MouseOverBackColor = _panel;
-            _serviceButton.BackColor = _panel;
-            _serviceButton.ForeColor = _dim;
-            _serviceButton.Font = new Font("Microsoft YaHei", 9F, FontStyle.Regular);
-            _serviceButton.Cursor = Cursors.Hand;
-            _serviceButton.Enabled = false;
-            _serviceButton.Anchor = AnchorStyles.Right;
-            _serviceButton.Margin = new Padding(0, 7, 12, 0);
-            _serviceButton.Click += async delegate { await ToggleServiceAsync(); };
-
             _topBar = new TableLayoutPanel();
             _topBar.Dock = DockStyle.Fill;
-            _topBar.ColumnCount = 2;
+            _topBar.ColumnCount = 1;
             _topBar.RowCount = 1;
             _topBar.BackColor = _bg;
             _topBar.Margin = new Padding(0);
             _topBar.Padding = new Padding(0);
             _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116F));
             _topBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             _topBar.Controls.Add(_tabBar, 0, 0);
-            _topBar.Controls.Add(_serviceButton, 1, 0);
 
             _contentHost = new Panel();
             _contentHost.Dock = DockStyle.Fill;
@@ -205,6 +186,24 @@ namespace QunZai
             _loading.ForeColor = _dim;
             _loading.Font = new Font("Microsoft YaHei", 11F, FontStyle.Regular);
             _contentHost.Controls.Add(_loading);
+
+            // 服务停止后页面已经不可用，用一个原生按钮让用户能重新启动。
+            _startButton = new Button();
+            _startButton.Text = "启动服务";
+            _startButton.Width = 132;
+            _startButton.Height = 36;
+            _startButton.FlatStyle = FlatStyle.Flat;
+            _startButton.FlatAppearance.BorderSize = 1;
+            _startButton.FlatAppearance.BorderColor = _line;
+            _startButton.FlatAppearance.MouseOverBackColor = _bg;
+            _startButton.BackColor = _panel;
+            _startButton.ForeColor = _text;
+            _startButton.Font = new Font("Microsoft YaHei", 10F, FontStyle.Regular);
+            _startButton.Cursor = Cursors.Hand;
+            _startButton.Visible = false;
+            _startButton.Click += async delegate { await StartServiceAsync(); };
+            _contentHost.Controls.Add(_startButton);
+            _contentHost.Resize += delegate { PositionStartButton(); };
 
             _statusPanel = new Panel();
             _statusPanel.Dock = DockStyle.Fill;
@@ -405,12 +404,12 @@ namespace QunZai
             if (_layout != null) _layout.BackColor = _bg;
             if (_topBar != null) _topBar.BackColor = _bg;
             if (_tabBar != null) _tabBar.BackColor = _bg;
-            if (_serviceButton != null)
+            if (_startButton != null)
             {
-                _serviceButton.BackColor = _panel;
-                _serviceButton.ForeColor = _serviceRunning ? _text : _dim;
-                _serviceButton.FlatAppearance.BorderColor = _line;
-                _serviceButton.FlatAppearance.MouseOverBackColor = _bg;
+                _startButton.BackColor = _panel;
+                _startButton.ForeColor = _text;
+                _startButton.FlatAppearance.BorderColor = _line;
+                _startButton.FlatAppearance.MouseOverBackColor = _bg;
             }
             if (_contentHost != null) _contentHost.BackColor = _bg;
             if (_loading != null)
@@ -432,38 +431,65 @@ namespace QunZai
             Invalidate(true);
         }
 
+        private void PositionStartButton()
+        {
+            if (_startButton == null || _contentHost == null) return;
+            int w = _contentHost.ClientSize.Width;
+            int h = _contentHost.ClientSize.Height;
+            _startButton.Left = Math.Max(0, (w - _startButton.Width) / 2);
+            _startButton.Top = Math.Max(0, (h / 2) + 36);
+        }
+
+        private void ShowStoppedOverlay(string text)
+        {
+            if (_loading != null)
+            {
+                _loading.Text = text;
+                _loading.BackColor = _bg;
+                _loading.ForeColor = _dim;
+                _loading.Visible = true;
+                _loading.BringToFront();
+            }
+            if (_startButton != null)
+            {
+                PositionStartButton();
+                _startButton.Text = "启动服务";
+                _startButton.Enabled = true;
+                _startButton.BackColor = _panel;
+                _startButton.ForeColor = _text;
+                _startButton.FlatAppearance.BorderColor = _line;
+                _startButton.FlatAppearance.MouseOverBackColor = _bg;
+                _startButton.Visible = true;
+                _startButton.BringToFront();
+            }
+        }
+
+        private void HideStartButton()
+        {
+            if (_startButton != null) _startButton.Visible = false;
+        }
+
         private void SetServiceUi(bool running, bool busy, string text)
         {
             _serviceRunning = running;
             _serviceBusy = busy;
-            if (_serviceButton == null) return;
-            _serviceButton.Text = text;
-            _serviceButton.Enabled = !busy;
-            _serviceButton.BackColor = _panel;
-            _serviceButton.ForeColor = running ? _text : _dim;
-            _serviceButton.FlatAppearance.BorderColor = _line;
-            _serviceButton.FlatAppearance.MouseOverBackColor = _bg;
+            if (_startButton != null)
+            {
+                _startButton.Enabled = !busy;
+                _startButton.Text = busy ? "启动中…" : "启动服务";
+            }
         }
 
-        private async Task ToggleServiceAsync()
+        /// <summary>页面顶栏的「停止服务」按钮发来消息后调用。</summary>
+        private async void StopServiceFromPage()
         {
-            if (_serviceBusy) return;
-            if (_serviceRunning)
-            {
-                DialogResult answer = MessageBox.Show(this,
-                    "停止服务后 QQ 机器人会下线；桌面窗口仍会保留，可在右上角重新启动。\n\n确定停止服务吗？",
-                    "群崽 QunZai", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (answer != DialogResult.Yes) return;
-                await StopServiceAsync();
-            }
-            else
-            {
-                await StartServiceAsync();
-            }
+            if (_serviceBusy || !_serviceRunning) return;
+            await StopServiceAsync();
         }
 
         private async Task StopServiceAsync()
         {
+            HideStartButton();
             SetServiceUi(true, true, "停止中…");
             _status.Text = "正在停止服务…";
             try
@@ -474,15 +500,8 @@ namespace QunZai
                 _serviceStoppedByUser = true;
                 SetServiceUi(false, false, "启动服务");
                 SelectTab(_showDeepSeek);
-                _status.Text = "服务已停止 · 点击右上角「启动服务」重新上线";
-                if (_loading != null)
-                {
-                    _loading.Text = "服务已停止\n\n点击右上角「启动服务」重新上线";
-                    _loading.BackColor = _bg;
-                    _loading.ForeColor = _dim;
-                    _loading.Visible = true;
-                    _loading.BringToFront();
-                }
+                _status.Text = "服务已停止 · 点击「启动服务」重新上线";
+                ShowStoppedOverlay("服务已停止\n\nQQ 机器人已下线，点击下方按钮重新上线");
             }
             catch (Exception ex)
             {
@@ -497,6 +516,7 @@ namespace QunZai
         private async Task StartServiceAsync()
         {
             _serviceStoppedByUser = false;
+            HideStartButton();
             SetServiceUi(false, true, "启动中…");
             _status.Text = "正在启动服务…";
             if (_loading != null)
@@ -543,6 +563,7 @@ namespace QunZai
                 }
 
                 SetServiceUi(true, false, "停止服务");
+                HideStartButton();
                 if (_webReady)
                 {
                     if (_loading != null)
@@ -566,11 +587,14 @@ namespace QunZai
                 bool running = _serverPort > 0 && IsQunZai(_serverPort);
                 SetServiceUi(running, false, running ? "停止服务" : "启动服务");
                 _status.Text = "启动失败";
-                if (_loading != null)
+                if (running)
                 {
-                    _loading.Text = "启动失败\n" + ex.Message;
-                    _loading.Visible = true;
-                    _loading.BringToFront();
+                    HideStartButton();
+                    if (_loading != null) _loading.Visible = false;
+                }
+                else
+                {
+                    ShowStoppedOverlay("启动失败\n" + ex.Message + "\n\n点击下方按钮重试");
                 }
                 MessageBox.Show(this, ex.Message, "群崽 QunZai 启动失败",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -810,10 +834,14 @@ namespace QunZai
                 bool running = _serverPort > 0 && IsQunZai(_serverPort);
                 SetServiceUi(running, false, running ? "停止服务" : "启动服务");
                 _status.Text = "启动失败";
-                if (_loading != null)
+                if (running)
                 {
-                    _loading.Text = "启动失败\n" + ex.Message;
-                    _loading.BringToFront();
+                    HideStartButton();
+                    if (_loading != null) _loading.Visible = false;
+                }
+                else
+                {
+                    ShowStoppedOverlay("启动失败\n" + ex.Message + "\n\n点击下方按钮重试");
                 }
                 MessageBox.Show(this, ex.Message, "群崽 QunZai 启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -986,6 +1014,11 @@ namespace QunZai
                         SelectTab(true);
                         _deepseek.Focus();
                     }
+                    if (!string.IsNullOrEmpty(msg) && Regex.IsMatch(msg, "\"type\"\\s*:\\s*\"service-stop\""))
+                    {
+                        try { BeginInvoke(new Action(StopServiceFromPage)); }
+                        catch { StopServiceFromPage(); }
+                    }
                 }
                 catch { }
             };
@@ -1008,16 +1041,12 @@ namespace QunZai
                 catch { }
                 if (_serviceStoppedByUser)
                 {
-                    if (_loading != null)
-                    {
-                        _loading.Text = "服务已停止\n\n点击右上角「启动服务」重新上线";
-                        _loading.Visible = true;
-                        _loading.BringToFront();
-                    }
+                    ShowStoppedOverlay("服务已停止\n\nQQ 机器人已下线，点击下方按钮重新上线");
                     return;
                 }
                 _webReady = true;
                 if (_loading != null) _loading.Visible = false;
+                HideStartButton();
                 SelectTab(_showDeepSeek);
                 RequestDeepSeekSync();
             };

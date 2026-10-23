@@ -1,4 +1,4 @@
-# 群崽 QunZai · 安装器专用停止脚本
+﻿# 群崽 QunZai · 安装器专用停止脚本
 # 只结束命令行里带 server\server.js 的 node 进程，避免误杀其他 Node 程序。
 param(
     [Parameter(Mandatory = $true)]
