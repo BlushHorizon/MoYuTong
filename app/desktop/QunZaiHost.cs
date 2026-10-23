@@ -142,7 +142,8 @@ namespace QunZai
             _dashboardTab.Click += delegate { SelectTab(false); };
             _deepseekTab.Click += delegate { SelectTab(true); };
             _tabBar.Controls.Add(_dashboardTab);
-            _tabBar.Controls.Add(_deepseekTab);
+            // 全屏标签默认不出现；进入全屏时只显示「← 返回监控台」。
+            _deepseekTab.Visible = false;
 
             _topBar = new TableLayoutPanel();
             _topBar.Dock = DockStyle.Fill;
@@ -237,6 +238,10 @@ namespace QunZai
             _layout.Controls.Add(_statusPanel, 0, 2);
             Controls.Add(_layout);
 
+            // 默认内嵌模式：整个原生标签栏收起，把纵向空间让给页面。
+            _topBar.Visible = false;
+            _layout.RowStyles[0].Height = 0F;
+
             SelectTab(false);
             if (_loading != null) _loading.BringToFront();
             Shown += async delegate { await InitializeAsync(); };
@@ -323,6 +328,14 @@ namespace QunZai
         private void SelectTab(bool showDeepSeek)
         {
             _showDeepSeek = showDeepSeek;
+            bool full = showDeepSeek && _webReady && _serviceRunning;
+            if (_topBar != null)
+            {
+                _topBar.Visible = full;
+                if (_layout != null && _layout.RowStyles.Count > 0)
+                    _layout.RowStyles[0].Height = full ? 42F : 0F;
+                _dashboardTab.Text = full ? "← 返回监控台" : "监控台";
+            }
             if (_webReady && _serviceRunning)
             {
                 // DeepSeek 始终保持非零尺寸；隐藏成可见性=false 会让网页视口变成 0，

@@ -408,7 +408,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.4'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.5'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -894,9 +894,9 @@ function init() {
   $('btnEngineStart').addEventListener('click', startEngine);
   $('btnEngineStop').addEventListener('click', stopEngine);
   $('btnUpdateCheck').addEventListener('click', () => checkUpdate(true));
+  $('btnDsExpand').addEventListener('click', showDeepSeekTab);
   $('btnDsOpen').addEventListener('click', async (e) => {
-    e.target.textContent = '启动中…';
-    try {
+    e.target.textContent = '启动中…';    try {
       await api('/api/ai/deepseek/open', { method: 'POST' });
       setTimeout(refreshDsStatus, 2500);
     } catch (err) {
@@ -972,6 +972,7 @@ function init() {
 }
 
 init();
+
 
 
 

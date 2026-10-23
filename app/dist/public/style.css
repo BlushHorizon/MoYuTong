@@ -323,6 +323,26 @@ html:not(.qz-host) .service-btn { display: none; }
   justify-content: space-between;
 }
 
+.ds-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-expand {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ds-expand:hover { color: var(--accent); border-color: rgba(53, 200, 255, 0.4); }
+html:not(.qz-host) .ds-expand { display: none; }
+
 .ds-badge {
   flex: none;
   font-size: 10px;
