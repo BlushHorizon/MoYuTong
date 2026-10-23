@@ -45,6 +45,8 @@ class DeepSeekWeb {
   constructor(opts = {}) {
     this.port = opts.port || DEFAULT_PORT;
     this.profileDir = opts.profileDir;
+    // 桌面宿主内嵌模式：CDP 由 QunZaiHost 的 WebView2 提供，绝不能再拉起外部 Edge
+    this.embedded = process.env.QUNZAI_EMBEDDED === '1';
     this.browserPath = opts.browserPath || EDGE_CANDIDATES.find((p) => p && fs.existsSync(p));
     this.onStatus = opts.onStatus || (() => {});
     // 当前站点档案（切换模型 = 换档案，同一套浏览器/CDP 驱动）
@@ -151,6 +153,21 @@ class DeepSeekWeb {
   /** 启动浏览器（如果 CDP 还没起来） */
   async ensureBrowser() {
     if (await this.isCdpAlive()) return true;
+    if (this.embedded) {
+      // 宿主启动 Node 服务后才创建 WebView2，存在几秒空窗期。
+      // 这里必须等宿主 CDP，不能回退启动外部 Edge；否则会跳出网页版 DeepSeek，
+      // 而且外部 Edge 和 WebView2 是两份登录态，内嵌页面反而会变成未登录。
+      this._set('launching', '正在等待内嵌 DeepSeek 页面…');
+      for (let i = 0; i < 50; i++) {
+        await sleep(400);
+        if (await this.isCdpAlive()) {
+          this._set('idle', '内嵌页面已就绪');
+          return true;
+        }
+      }
+      this._set('error', '内嵌 DeepSeek 页面未就绪，请重新打开群崽');
+      return false;
+    }
     if (!this.browserPath || !fs.existsSync(this.browserPath)) {
       this._set('error', '未找到 Edge/Chrome 可执行文件，请在设置里指定浏览器路径');
       return false;
@@ -192,7 +209,18 @@ class DeepSeekWeb {
   async ensureTarget() {
     if (this._ws && this._ws.readyState === 1 && this._wsUrl) {
       const ok = await this._evaluate('1+1');
-      if (ok !== null) return true;
+      if (ok !== null) {
+        // 页面可能在内嵌窗口里从“扫码登录”切到已登录；
+        // 每次都重新探一次状态，避免登录成功后还一直卡在 need-login。
+        const liveState = await this._probeState();
+        if (liveState === 'ready') return true;
+        if (liveState === 'need-login') {
+          this._set('need-login', this.embedded
+            ? `请在内嵌 DeepSeek 页面扫码登录「${this.site.short}」（登录一次会记住）`
+            : `请在弹出的浏览器窗口里登录「${this.site.short}」${this.site.images ? '（登录态会记住）' : ''}`);
+          return false;
+        }
+      }
       try { this._ws.close(); } catch { /* noop */ }
       this._ws = null;
     }
@@ -203,7 +231,9 @@ class DeepSeekWeb {
       try { page = await this.findPage(); } catch { page = null; }
       if (page && page.webSocketDebuggerUrl) break;
       page = null;
-      if (i === 2) await this._newTab(this.site.url);   // 自愈：切站点后页面没开就自己开
+      // 自愈：切站点后页面没开就自己开。内嵌模式不能新开 target，
+      // 否则 WebView2 会再弹一个 DeepSeek 窗口；等宿主把页面建好即可。
+      if (i === 2 && !this.embedded) await this._newTab(this.site.url);
       await sleep(1000);
     }
     if (!page) {
@@ -214,7 +244,13 @@ class DeepSeekWeb {
     await this._connect(page.webSocketDebuggerUrl);
     const state = await this._probeState();
     if (state === 'need-login') {
-      this._set('need-login', `请在弹出的浏览器窗口里登录「${this.site.short}」${this.site.images ? '（登录态会记住）' : ''}`);
+      this._set('need-login', this.embedded
+        ? `请在内嵌 DeepSeek 页面扫码登录「${this.site.short}」（登录一次会记住）`
+        : `请在弹出的浏览器窗口里登录「${this.site.short}」${this.site.images ? '（登录态会记住）' : ''}`);
+      return false;
+    }
+    if (state !== 'ready') {
+      this._set('idle', `${this.site.name} 页面正在加载，请稍后再试`);
       return false;
     }
     this._set('ready', `${this.site.name} 已就绪`);
@@ -450,7 +486,9 @@ class DeepSeekWeb {
 
     if (!filled || !filled.ok) {
       const st = await this._probeState();
-      if (st === 'need-login') this._set('need-login', `请在浏览器窗口登录「${this.site.short}」`);
+      if (st === 'need-login') this._set('need-login', this.embedded
+      ? `请在内嵌 DeepSeek 页面扫码登录「${this.site.short}」`
+      : `请在浏览器窗口登录「${this.site.short}」`);
       throw new Error('页面里找不到输入框' + (filled?.reason ? `（${filled.reason}）` : ''));
     }
 
@@ -690,6 +728,8 @@ class DeepSeekWeb {
    * 所以这里先建空白页，再直连它用 Page.navigate 导航。
    */
   async _newTab(url) {
+    // 内嵌模式的新 target 会在 WebView2 里再弹一个窗口，直接禁用。
+    if (this.embedded) return false;
     for (const method of ['PUT', 'GET']) {
       try {
         const resp = await fetch(`http://127.0.0.1:${this.port}/json/new?about:blank`, { method });
@@ -714,7 +754,7 @@ class DeepSeekWeb {
     for (let i = 0; i < 8; i++) {
       const page = await this.findPage().catch(() => null);
       if (page) return true;
-      if (i === 0) await this._newTab(this.site.url);   // 关键：没有页面就自己开一个
+      if (i === 0 && !this.embedded) await this._newTab(this.site.url);   // 非内嵌模式才允许自己开页
       await sleep(800);
     }
     return false;

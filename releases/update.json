@@ -1,12 +1,12 @@
 {
-  "version": "1.4.0",
-  "notes": "群崽 v1.4.0：桌面宿主内置服务启停，关闭窗口自动停止由它启动的服务；升级会清理旧版开启/关闭快捷方式；修复旧版配置升级后自动更新地址为空的问题。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。历史版本见 GitHub Releases。",
+  "version": "1.4.1",
+  "notes": "群崽 v1.4.1：修复内嵌 DeepSeek 新建对话时偶尔弹出外部窗口；打开登录按钮直接切到内嵌 DeepSeek 标签页；登录成功后无需重启即可恢复；旧版配置升级自动更新地址保持有效。DeepSeek 登录态过期时需在内嵌页扫码一次，之后会记住。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。历史版本见 GitHub Releases。",
   "pubDate": "2026-10-23",
   "files": [
     {
       "url": "https://blushhorizon.github.io/QunZai/assets/%E7%BE%A4%E5%B4%BDQunZai%E5%AE%89%E8%A3%85%E5%8C%85.exe",
-      "sha256": "4604041211aa008ad52adff7a50f0b5f1cb3c9076aca2978f01363d7980ca2a7",
-      "size": 343880
+      "sha256": "df979ec2f561533b06289cbc51063633464db778a4c12ec3dfa60f188767c886",
+      "size": 344426
     }
   ]
 }

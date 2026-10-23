@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * 群崽 QunZai · 监控台前端
  * ---------------------------------------------------------------------------
@@ -11,6 +11,15 @@ const THEME_KEY = 'qunzai.theme';
 
 function currentTheme() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+
+/** 让桌面宿主切到内嵌 DeepSeek 页；普通浏览器打开时忽略 */
+function showDeepSeekTab() {
+  try {
+    if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+      window.chrome.webview.postMessage({ type: 'deepseek' });
+    }
+  } catch (e) { /* 非桌面宿主忽略 */ }
 }
 
 function applyTheme(theme, persist) {
@@ -264,7 +273,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.0'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.1'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -731,7 +740,10 @@ function init() {
     } catch (err) {
       alert('打开失败：' + err.message);
     } finally {
-      e.target.textContent = '① 打开浏览器并登录';
+      // 内嵌模式直接切到桌面宿主里的 DeepSeek 标签页，
+      // 不再让服务端去 /json/new 开新窗口。
+      showDeepSeekTab();
+      e.target.textContent = '① 打开 DeepSeek 登录';
     }
   });
   $('btnDsNew').addEventListener('click', async (e) => {
@@ -743,6 +755,7 @@ function init() {
       setTimeout(() => { e.target.textContent = '② 新建对话'; }, 1500);
     } catch (err) {
       e.target.textContent = '② 新建对话';
+      showDeepSeekTab();
       alert('新建对话失败：' + err.message);
     }
     refreshDsStatus();
@@ -797,3 +810,4 @@ function init() {
 }
 
 init();
+

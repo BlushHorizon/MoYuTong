@@ -1,26 +1,26 @@
-# 群崽 QunZai v1.4.0 发布记录
+# 群崽 QunZai v1.4.1 发布记录
 
 发布日期：2026-10-23
-状态：已发布到官网与 GitHub Releases；历史版本保留。
+状态：修复内嵌 DeepSeek 弹窗与登录态检测；官网与 GitHub Releases 已同步。
 
 ## 安装包
 
 | 项目 | 值 |
 |---|---|
-| 文件 | `群崽QunZai安装包-v1.4.0.exe` |
-| 大小 | 343,880 B / 335.8 KB |
-| SHA256 | `4604041211aa008ad52adff7a50f0b5f1cb3c9076aca2978f01363d7980ca2a7` |
+| 文件 | `群崽QunZai安装包-v1.4.1.exe` |
+| 大小 | 344,426 B / 336.4 KB |
+| SHA256 | `df979ec2f561533b06289cbc51063633464db778a4c12ec3dfa60f188767c886` |
 | 官网下载 | https://blushhorizon.github.io/QunZai/ |
 | GitHub Releases | https://github.com/BlushHorizon/QunZai/releases |
 
 ## 本版内容
 
-- 桌面宿主内置「停止服务 / 启动服务」，关闭窗口会停止由宿主启动的服务
-- 删除独立的「群崽-开启 / 群崽-关闭」快捷方式，仅保留主入口
-- 安装器升级时清理旧快捷方式与旧 bat 入口
-- 保留 `D:\群崽\config.json` 与 `D:\群崽\data`，覆盖安装不丢配置和聊天数据
-- 自动更新清单发布到官网 `update.json`
-- 修复旧版配置升级后自动更新地址为空：默认清单地址内置，旧配置缺字段或空字符串时自动回填
+- 内嵌模式启动时等待宿主 WebView2 的 CDP，不再回退启动外部 Edge
+- 内嵌模式禁用 `/json/new` 新开 target，避免新建对话时弹出额外 DeepSeek 窗口
+- 「① 打开 DeepSeek 登录」改为直接切到内嵌 DeepSeek 标签页
+- 登录成功后重新探测页面状态，无需重启服务即可从 `need-login` 恢复为 `ready`
+- 保留 WebView2 登录态；会话过期时只需在内嵌页扫码登录一次，之后会记住
+- 继续修复旧版配置升级后自动更新地址为空
 
 ## 隐私与安装包复核
 
@@ -28,8 +28,8 @@
 - `engine.account`、`engine.dir` 为空，不包含本机机器人账号或路径
 - 安装包解开后逐文件扫描：无真实 `accessToken`、API Key、本机 QQ 账号、`data/`、日志、浏览器 Cookies / 登录态
 - 安装包文件清单为显式白名单，不使用 `File /r "dist\*"` 的整目录通配打包
-- 桌面宿主与 `app/dist` 的最新构建哈希一致
+- 安装包内没有 `开启.bat` / `关闭.bat`，也没有旧的开启/关闭快捷方式
 
 ## 历史版本
 
-`v1.0.0` 至 `v1.4.0` 的安装包均保留在 GitHub 仓库 `releases/` 与本地 `releases/history/` 归档中；v1.4.0 Release 正文提供全部历史版本直链，v1.0.0 保留独立 Release。
+`v1.0.0` 至 `v1.4.1` 的安装包均保留在 GitHub 仓库 `releases/` 与本地 `releases/history/` 归档中；v1.4.1 Release 正文提供全部历史版本直链，v1.0.0 保留独立 Release。
