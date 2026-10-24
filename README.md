@@ -1,10 +1,10 @@
-﻿# 群崽 QunZai
+# 群崽 QunZai
 
 > 让群热闹，也把群管好 —— 住进 QQ 群的 AI 搭子 · 免 API Key · 自己发表情包
 
 群崽通过 **OneBot 11**（SnowLuma / NapCat 等任意实现）接入你的 QQ，用**网页版大模型**当大脑。它干两件事：**把群盘活**（接梗、斗图、自己发表情包）和**把群管好**（@ 才回、关键词、指定会话、免打扰、主人远程指令）。内置网页监控台，连接状态、回复记录、表情包素材全部可视化。Windows 安装包约 342 KB，双击即用。
 
-> ☕ 如果群崽帮到了你，可以在这里请作者喝杯咖啡：**[爱发电 · BlushHorizon](https://ifdian.net/u/76c7d1dcfc3e11ef90af52540025c377)**  
+> ☕ 如果群崽帮到了你，可以在这里请作者喝杯咖啡：**[爱发电 · BlushHorizon](https://ifdian.net/a/blushhorizon)**  
 > 软件仍然免费开源，发电完全自愿，不发电也完全不影响使用。
 
 ![监控台](site/assets/shot-dashboard.png)
@@ -60,7 +60,7 @@
 
 如果群崽帮到了你，可以在这里请作者喝杯咖啡：
 
-**[爱发电 · BlushHorizon](https://ifdian.net/u/76c7d1dcfc3e11ef90af52540025c377)**
+**[爱发电 · BlushHorizon](https://ifdian.net/a/blushhorizon)**
 
 软件仍然免费开源，所有功能都不会锁进付费档；发电完全自愿，不发电也完全不影响使用。
 
