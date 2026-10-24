@@ -976,6 +976,22 @@ namespace QunZai
                 e.Handled = true;
                 try { _deepseek.CoreWebView2.Navigate(e.Uri); } catch { }
             };
+            // 监控台里的官网 / GitHub / 爱发电等外链：用系统默认浏览器打开，
+            // 不要把监控台本身导航走，也不要在 WebView 里弹新窗口。
+            _dashboard.CoreWebView2.NewWindowRequested += delegate (object sender, CoreWebView2NewWindowRequestedEventArgs e)
+            {
+                e.Handled = true;
+                try
+                {
+                    if (e.Uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                        e.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                        e.Uri.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
+                    }
+                }
+                catch (Exception ex) { HostLog.Write("open external failed: " + ex.Message); }
+            };
             _dashboard.CoreWebView2.WebMessageReceived += delegate (object sender, CoreWebView2WebMessageReceivedEventArgs e)
             {
                 try

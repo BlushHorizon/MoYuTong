@@ -411,7 +411,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.7'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.8'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -981,6 +981,7 @@ function init() {
 }
 
 init();
+
 
 
 

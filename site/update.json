@@ -1,12 +1,12 @@
 {
-  "version": "1.4.7",
-  "notes": "群崽 v1.4.7：服务停止后点右上角 X 会直接退出软件，不再留在托盘；服务运行时点 X 仍然最小化到托盘，机器人继续在线。延续 v1.4.6 的可自定义回复冷却（设为 0 或取消勾选即不冷却）、v1.4.5 的面板全屏按钮、v1.4.4 的顶栏停止服务。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。",
+  "version": "1.4.8",
+  "notes": "群崽 v1.4.8：关于页新增「支持群崽 · 爱发电」入口，官网和 README 同步上线 BlushHorizon 的爱发电主页；监控台里的官网 / GitHub / 爱发电外链改用系统默认浏览器打开。延续 v1.4.7 的停服务后关闭直接退出、v1.4.6 的自定义回复冷却。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。",
   "pubDate": "2026-10-24",
   "files": [
     {
       "url": "https://blushhorizon.github.io/QunZai/assets/%E7%BE%A4%E5%B4%BDQunZai%E5%AE%89%E8%A3%85%E5%8C%85.exe",
-      "sha256": "1c4a4ff989fb3e5d045077aeccf0e2192c66ce08ae6c3f3328338b10614545b4",
-      "size": 350293
+      "sha256": "9ad4cdc0e550cdf90dbb4afd180865b2997fda4dc51c09e2e49ecb7753589b42",
+      "size": 350443
     }
   ]
 }

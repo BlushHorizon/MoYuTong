@@ -88,7 +88,12 @@ function checkText(dir = DIST, depth = 0) {
     // 长随机串（典型令牌形态：>=32 位字母数字混排）
     const mTok = t.match(/\b[A-Za-z0-9_-]{32,}\b/g);
     for (const c of (mTok || [])) {
-      if (/\d/.test(c) && /[a-z]/i.test(c) && !/^[0-9]+$/.test(c)) problems.push(`${rel}  ::  疑似凭据串 ${c.slice(0, 20)}…`);
+      if (!(/\d/.test(c) && /[a-z]/i.test(c) && !/^[0-9]+$/.test(c))) continue;
+      // 爱发电主页链接里的 32 位用户 ID 是公开地址，不是凭据
+      const idx = t.indexOf(c);
+      const near = t.slice(Math.max(0, idx - 40), idx + c.length + 4);
+      if (/(?:ifdian\.net|afdian\.com)\/u\//i.test(near)) continue;
+      problems.push(`${rel}  ::  疑似凭据串 ${c.slice(0, 20)}…`);
     }
     const m11 = t.match(/\b1[3-9]\d{9}\b/g);
     for (const c of new Set(m11 || [])) {
