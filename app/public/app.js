@@ -389,7 +389,10 @@ async function openSettings() {
   $('setQuietFrom').value = ai.quietFrom || '23:00';
   $('setQuietTo').value = ai.quietTo || '08:00';
   $('setCmdSenders').value = ai.commandSenders || '';
-  $('setInterval').value = ai.minIntervalMs ?? 2500;
+  const cooldownMs = ai.minIntervalMs ?? 2500;
+  $('setCooldownEnabled').checked = cooldownMs > 0;
+  $('setCooldownSec').value = cooldownMs > 0 ? cooldownMs / 1000 : 3;
+  $('setCooldownSec').disabled = cooldownMs <= 0;
   $('setPrompt').value = ai.systemPrompt || '';
   $('setCdpPort').value = ai.cdpPort ?? 9222;
   $('setBrowserPath').value = ai.browserPath || '';
@@ -408,7 +411,7 @@ async function openSettings() {
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.5'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.6'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -739,7 +742,9 @@ async function saveSettings() {
       quietFrom: $('setQuietFrom').value || '23:00',
       quietTo: $('setQuietTo').value || '08:00',
       commandSenders: $('setCmdSenders').value,
-      minIntervalMs: Number($('setInterval').value) || 2500,
+      minIntervalMs: $('setCooldownEnabled').checked
+        ? Math.max(0, Math.round((Number($('setCooldownSec').value) || 0) * 1000))
+        : 0,
       systemPrompt: $('setPrompt').value
     },
     qq: {
@@ -888,6 +893,9 @@ function init() {
     }
   });
   $('btnSaveSettings').addEventListener('click', saveSettings);
+  $('setCooldownEnabled').addEventListener('change', () => {
+    $('setCooldownSec').disabled = !$('setCooldownEnabled').checked;
+  });
   $('setProvider').addEventListener('change', () => { toggleProviderView(); refreshDsStatus(); });
   $('setReplyMode').addEventListener('change', toggleTargetView);
   $('btnEngineDetect').addEventListener('click', detectEngine);
@@ -896,7 +904,8 @@ function init() {
   $('btnUpdateCheck').addEventListener('click', () => checkUpdate(true));
   $('btnDsExpand').addEventListener('click', showDeepSeekTab);
   $('btnDsOpen').addEventListener('click', async (e) => {
-    e.target.textContent = '启动中…';    try {
+    e.target.textContent = '启动中…';
+    try {
       await api('/api/ai/deepseek/open', { method: 'POST' });
       setTimeout(refreshDsStatus, 2500);
     } catch (err) {
@@ -972,6 +981,7 @@ function init() {
 }
 
 init();
+
 
 
 

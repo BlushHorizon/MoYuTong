@@ -66,7 +66,7 @@ const DEFAULT_CONFIG = {
     imageReply: true,             // 看图回复：收到图片时让 DeepSeek 看图后回复
     groupAtSender: true,          // 群聊回复时自动 @ 触发消息的成员
     groupQuote: true,             // 群聊回复时自动引用原消息
-    minIntervalMs: 2500,         // 同一会话两次回复的最小间隔
+    minIntervalMs: 2500,         // 同一会话两次回复的最小间隔；0 = 不冷却
     historyTurns: 8,             // 送给模型的上下文轮数
     replyDelayMs: 900            // 模拟“正在输入”的思考时间
   },

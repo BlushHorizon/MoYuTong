@@ -77,7 +77,7 @@
 
 ## 安装与使用
 
-1. 从 [Releases](https://github.com/BlushHorizon/QunZai/releases/latest) 下载最新安装包（当前 v1.4.5），默认装到 `D:\群崽`，覆盖安装不丢数据
+1. 从 [Releases](https://github.com/BlushHorizon/QunZai/releases/latest) 下载最新安装包（当前 v1.4.6），默认装到 `D:\群崽`，覆盖安装不丢数据
 2. 启动任意 OneBot 11 机器人端（如 SnowLuma / NapCat），面板里填 WS 地址（默认 `ws://127.0.0.1:3001`）
 3. 双击桌面「群崽 QunZai」打开监控台 → 点「① 打开该网站」扫码登录一次 DeepSeek 网页版，之后它自己开工；服务启停在窗口右上角
 
@@ -134,6 +134,7 @@ node server/server.js       # 或 Windows 下双击 start.bat
 ## License
 
 MIT © QunZai contributors
+
 
 
 

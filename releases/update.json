@@ -1,12 +1,12 @@
 {
-  "version": "1.4.5",
-  "notes": "群崽 v1.4.5：删掉顶部「DeepSeek · 全屏」标签，改成 DeepSeek 面板右上角的「全屏」小按钮；点一下临时全屏扫码，左上角「← 返回监控台」回来。平时只保留监控台页面，原生标签栏收起，纵向空间更大。延续 v1.4.4 的顶栏停止服务、v1.4.3 的内嵌 DeepSeek / 托盘 / 页面内提示框。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。",
+  "version": "1.4.6",
+  "notes": "群崽 v1.4.6：回复冷却现在可以在「设置」里自定义，单位秒，取消勾选或设为 0 就不冷却；顺手把冷却设置从 API 模式挪到通用设置，网页版 DeepSeek 也能看到。延续 v1.4.5 的面板全屏按钮、v1.4.4 的顶栏停止服务、v1.4.3 的内嵌 DeepSeek / 托盘 / 页面内提示框。安装包已通过隐私闸门与内容复核，不含真实配置、accessToken 或 QQ 账号。",
   "pubDate": "2026-10-24",
   "files": [
     {
       "url": "https://blushhorizon.github.io/QunZai/assets/%E7%BE%A4%E5%B4%BDQunZai%E5%AE%89%E8%A3%85%E5%8C%85.exe",
-      "sha256": "ea84aa9614d978eb0d980ba56cc486c9106f95fdcb4189cef8dc273cef3c08f6",
-      "size": 349745
+      "sha256": "f1ad40eccb00730a6bc95b7cb63b432fc23f2032d983a33eeb07f407d6d592b0",
+      "size": 349612
     }
   ]
 }

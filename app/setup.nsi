@@ -14,7 +14,7 @@ SetCompressor /SOLID lzma
 !define REGKEY "Software\QunZai"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QunZai"
 !ifndef VERSION
-  !define VERSION "1.4.5"
+  !define VERSION "1.4.6"
 !endif
 
 Name "${APPNAME}"
@@ -166,6 +166,7 @@ Section "Uninstall"
   DeleteRegKey HKCU "${UNINSTKEY}"
   DeleteRegKey HKCU "${REGKEY}"
 SectionEnd
+
 
 
 

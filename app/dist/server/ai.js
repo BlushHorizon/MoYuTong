@@ -154,7 +154,8 @@ class AIResponder {
 
     const key = this.store.chatKey(msg.chatType, msg.chatId);
     const last = this._lastReplyAt.get(key) || 0;
-    if (Date.now() - last < (c.minIntervalMs ?? 2500)) {
+    const cooldownMs = Math.max(0, Number(c.minIntervalMs) || 0);
+    if (cooldownMs > 0 && Date.now() - last < cooldownMs) {
       return { ok: false, reason: '冷却中' };
     }
     return { ok: true };
