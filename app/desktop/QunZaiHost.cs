@@ -1072,14 +1072,19 @@ namespace QunZai
 
         private void OnClosing(object sender, FormClosingEventArgs e)
         {
-            HostLog.Write("form closing reason=" + e.CloseReason + " reallyExit=" + _reallyExit);
-            // 点右上角 X 时默认收进托盘，QQ 机器人继续在后台运行；
-            // 真要退出请用托盘菜单里的「退出群崽」。
+            HostLog.Write("form closing reason=" + e.CloseReason + " reallyExit=" + _reallyExit
+                + " serviceRunning=" + _serviceRunning + " stoppedByUser=" + _serviceStoppedByUser);
+            // 服务还在跑：点右上角 X 收进托盘，QQ 机器人继续在后台运行；
+            // 服务已经停止：没有后台任务了，点 X 直接退出，不再驻留托盘。
             if (!_reallyExit && e.CloseReason == CloseReason.UserClosing)
             {
-                e.Cancel = true;
-                HideToTray();
-                return;
+                if (_serviceRunning && !_serviceStoppedByUser)
+                {
+                    e.Cancel = true;
+                    HideToTray();
+                    return;
+                }
+                _reallyExit = true;
             }
             try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; } } catch { }
             try { if (_trayMenu != null) { _trayMenu.Dispose(); _trayMenu = null; } } catch { }
