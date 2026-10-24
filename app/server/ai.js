@@ -9,7 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { STICKER_ABILITY_PROMPT } = require('./stickers');
+const { STICKER_ABILITY_PROMPT, buildStickerPrompt } = require('./stickers');
 
 const OPENAI_CHAT_PATH = '/chat/completions';
 
@@ -311,10 +311,11 @@ class AIResponder {
 
       // 表情包：AI 回复里的 [表情]/[表情:关键词] 标记 → 剥掉标记、挑表情包跟在文字后面
       // 一条回复可以多个标记（三连/四连），全部打包成【一条】消息发出，不算刷屏
+      // 先翻群友发过的素材，翻不到再去在线图库（梗鲸 DeepSeek娘）按描述现取一张
       let outText = reply.trim();
       let stickerPicks = [];
       if (this.sticker) {
-        const taken = this.sticker.takeFromReply(outText);
+        const taken = await this.sticker.takeFromReplyAsync(outText);
         outText = taken.text;
         stickerPicks = taken.stickers || [];
       }
@@ -402,6 +403,13 @@ class AIResponder {
     return files;
   }
 
+  /** 只算表情包能力段（带图库数量），OpenAI 兼容接口用 */
+  _stickerPrompt() {
+    let n = 0;
+    try { n = this.sticker && this.sticker.gallery ? this.sticker.gallery.stats().count : 0; } catch { /* 读不到就当没有 */ }
+    return buildStickerPrompt(n);
+  }
+
   /**
    * 发给模型的完整提示词 = 用户在网页端填的人设 + 内置能力段（表情包）。
    * 能力段写死在代码里，用户改人设不会弄丢——AI 永远知道自己有发表情包的本事、
@@ -410,7 +418,8 @@ class AIResponder {
   _fullPrompt() {
     const base = this.cfg.webPrompt || '';
     if (!this.sticker) return base;
-    return base ? base + '\n\n' + STICKER_ABILITY_PROMPT : STICKER_ABILITY_PROMPT;
+    const stickerPrompt = this._stickerPrompt();
+    return base ? base + '\n\n' + stickerPrompt : stickerPrompt;
   }
 
   /**
@@ -454,7 +463,7 @@ class AIResponder {
     const base = String(c.baseUrl || '').replace(/\/+$/, '');
     const url = base.endsWith(OPENAI_CHAT_PATH) ? base : base + OPENAI_CHAT_PATH;
     const messages = [
-      { role: 'system', content: [c.systemPrompt, this.sticker ? STICKER_ABILITY_PROMPT : '', context].filter(Boolean).join('\n') },
+      { role: 'system', content: [c.systemPrompt, this.sticker ? this._stickerPrompt() : '', context].filter(Boolean).join('\n') },
       ...history,
       { role: 'user', content: msg.text }
     ];

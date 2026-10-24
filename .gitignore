@@ -1,4 +1,4 @@
-﻿# 运行期数据（聊天记录 / 表情包库 / 浏览器登录态 / 日志）——绝不进仓库
+# 运行期数据（聊天记录 / 表情包库 / 浏览器登录态 / 日志）——绝不进仓库
 app/data/
 data/
 *.log
@@ -7,6 +7,11 @@ stdin.empty
 
 # 依赖（本项目零运行时依赖，留个口子）
 node_modules/
+
+# 内置的第三方 QQ 监视器（NapCat 等）：100+ MB 且含第三方许可，
+# 不进 Git 仓库。打包机把它放在 app/engine-src/napcat/，构建时拷到 dist/engine/。
+app/engine-src/
+app/dist/engine/
 
 # 浏览器配置目录（内含已登录会话 Cookies，绝不能进仓库）
 deepseek_profile/
@@ -25,6 +30,12 @@ mv/.edge-site/
 
 # 桌面宿主编译产物（打包时由 app/desktop/build.ps1 重新生成）
 app/desktop/bin/
+
+# 安装包二进制：v1.4.9 起单包涨到 80 MB（内置 NapCat），继续入库会把仓库撑爆。
+# 从 v1.4.9 开始改走「GitHub Release 资产」分发，Git 里只保留 350 KB 级别的历史包。
+# 官网分发副本是个例外：site/assets/ 下那份要随 Pages 部署，仍被追踪。
+releases/群崽QunZai安装包-v1.4.9.exe
+releases/history/
 
 # 浏览器 / 系统杂项
 Thumbs.db

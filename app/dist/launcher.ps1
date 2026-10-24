@@ -1,4 +1,4 @@
-﻿# 群崽 QunZai · 一键启动器（由桌面快捷方式调用）
+# 群崽 QunZai · 一键启动器（由桌面快捷方式调用）
 # 参数：-NoBrowser 只启动服务不开网页；-Stop 停止服务；-LiveConsole 实时控制台模式
 # 守护模式：启动后常驻，服务进程意外退出 3 秒后自动重启（防抽风）。
 # -LiveConsole：日志直接打在本窗口；关闭本窗口 = 服务随窗口一起关停。
@@ -193,13 +193,23 @@ if ($Stop) {
 }
 
 # ---------- Node 环境检查 ----------
-$node = Get-Command node -ErrorAction SilentlyContinue
+# 先找安装包内置的 Node（随内置 QQ 监视器一起来的那份），用户就不必自己装
+$node = $null
+foreach ($cand in @(
+    (Join-Path $PSScriptRoot 'engine\napcat\node.exe'),
+    (Join-Path $PSScriptRoot 'engine\snowluma\node.exe')
+)) {
+    if (Test-Path -LiteralPath $cand) { $node = Get-Item -LiteralPath $cand; break }
+}
+if (-not $node) { $node = Get-Command node -ErrorAction SilentlyContinue }
 if (-not $node) {
-    Show-Msg "未检测到 Node.js。`n`n请先安装 Node.js 22 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新启动群崽。" '缺少 Node.js'
+    Show-Msg "未检测到 Node.js，安装包里也没找到内置的那份。`n`n请先安装 Node.js 22 或更高版本：`nhttps://nodejs.org/`n`n安装完成后重新启动群崽。" '缺少 Node.js'
     exit 1
 }
+# Get-Command 返回 CommandInfo（路径在 .Source），Get-Item 返回 FileInfo（路径在 .FullName）
+$nodeExe = if ($node.PSObject.Properties['Source'] -and $node.Source) { $node.Source } else { $node.FullName }
 $nodeVersion = ''
-try { $nodeVersion = (& $node.Source -v 2>$null | Select-Object -First 1) } catch { }
+try { $nodeVersion = (& $nodeExe -v 2>$null | Select-Object -First 1) } catch { }
 $nodeMajor = 0
 if ($nodeVersion -match '^v(\d+)\.') { $nodeMajor = [int]$Matches[1] }
 if ($nodeMajor -lt 22) {
@@ -270,7 +280,7 @@ while ($true) {
     $proc = $null
     try {
         # -NoNewWindow：node 挂在本控制台 —— 窗口即日志实时视图（日志本体由 node 写入 data\app.log）
-        $proc = Start-Process -FilePath $node.Source `
+        $proc = Start-Process -FilePath $nodeExe `
             -ArgumentList 'server\server.js' `
             -WorkingDirectory $root `
             -NoNewWindow `

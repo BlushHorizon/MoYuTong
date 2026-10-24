@@ -12,6 +12,7 @@
     "engine": {
       "enabled": true,
       "autoStart": true,
+      "source": "auto",
       "dir": "",
       "account": "",
       "apiPort": 3000

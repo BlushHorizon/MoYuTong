@@ -39,15 +39,21 @@ class StickerLibrary {
    * @param {object} opts.adapter  qq-adapter（sendSegments 发表情）
    * @param {(t:string)=>void} [opts.log]
    */
-  constructor({ dataDir, adapter, log }) {
+  constructor({ dataDir, adapter, log, gallery }) {
     this.file = path.join(dataDir, 'stickers.json');
     this.cacheDir = path.join(dataDir, 'stickers'); // 本地副本目录（QQ 图链会过期，这里永不过期）
     this.adapter = adapter;
     this.log = log || (() => {});
+    this.gallery = gallery || null; // 可选：在线图库（OnlineGallery），本地挑不到时兜底
     this._lib = null;            // 懒加载
     this._lastSentAt = 0;
     this._cooldownMs = 40 * 1000;
     this._caching = new Set();   // 正在后台下载的 key（防重复拉）
+  }
+
+  /** 运行期接上在线图库（server.js 里创建顺序靠后就晚绑） */
+  setGallery(g) {
+    this.gallery = g || null;
   }
 
   _load() {
@@ -233,12 +239,8 @@ class StickerLibrary {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  /**
-   * 处理 AI 回复文本：剥掉全部表情标记，返回 { text, stickers }。
-   * 一条回复里的所有标记都兑现（最多 MAX_PER_REPLY 个）；stickers 受冷却限制——
-   * 冷却中或库里没有就只发文字（宁缺勿滥）。
-   */
-  takeFromReply(reply) {
+  /** 剥掉回复里的表情标记，返回 { text, keywords }（不改任何状态） */
+  parseReply(reply) {
     let text = String(reply || '');
     const keywords = [];
     text = text.replace(MARKER_RE, (m, kw) => {
@@ -251,27 +253,112 @@ class StickerLibrary {
       .replace(/\s+([，。！？…、；：,.!?;:）)】》」』])/g, '$1')
       .replace(/([（【《「『(\[])\s+/g, '$1')
       .replace(/^[ \t\n]+|[ \t\n]+$/g, '');
-    if (!keywords.length) return { text: text.trim(), stickers: [] };
-    if (Date.now() - this._lastSentAt < this._cooldownMs) {
+    return { text: text.trim(), keywords };
+  }
+
+  /** 冷却中？（发过之后一段时间内不再打扰） */
+  get cooling() {
+    return Date.now() - this._lastSentAt < this._cooldownMs;
+  }
+
+  /**
+   * 处理 AI 回复文本：剥掉全部表情标记，返回 { text, stickers }。
+   * 一条回复里的所有标记都兑现（最多 MAX_PER_REPLY 个）；stickers 受冷却限制——
+   * 冷却中或库里没有就只发文字（宁缺勿滥）。**只看本地素材库**（群友发过的）。
+   */
+  takeFromReply(reply) {
+    const { text, keywords } = this.parseReply(reply);
+    if (!keywords.length) return { text, stickers: [] };
+    if (this.cooling) {
       this.log(`想发 ${keywords.length} 个表情包「${keywords.join('/') || '随机'}」但还在冷却（${Math.round(this._cooldownMs / 1000)}s），跳过`);
-      return { text: text.trim(), stickers: [] };
-    }
-    const wants = keywords.slice(0, MAX_PER_REPLY);
-    if (keywords.length > MAX_PER_REPLY) {
-      this.log(`标记 ${keywords.length} 个，超过上限按 ${MAX_PER_REPLY} 个兑现`);
+      return { text, stickers: [] };
     }
     const picks = [];
     const used = new Set();
-    for (const kw of wants) {
+    for (const kw of keywords.slice(0, MAX_PER_REPLY)) {
       const p = this.pick(kw, used);
       if (p) { picks.push(p); used.add(p); }
     }
     if (!picks.length) {
-      this.log(`标记「${keywords.join('/') || '随机'}」但表情库是空的，跳过`);
-      return { text: text.trim(), stickers: [] };
+      this.log(`标记「${keywords.join('/') || '随机'}」但本地表情库是空的`);
+      return { text, stickers: [] };
     }
     this._lastSentAt = Date.now();
-    return { text: text.trim(), stickers: picks };
+    return { text, stickers: picks };
+  }
+
+  /**
+   * 严格版 pick：有关键词时必须真的命中描述，命不中返回 null（不退回随机）。
+   * 给「本地挑不到就去在线图库」用——不然本地随便给一张，在线图库永远轮不上。
+   * 关键词为空时仍是随机。
+   */
+  pickStrict(keyword, exclude) {
+    const kw = String(keyword || '').trim().toLowerCase();
+    if (!kw) return this.pick('', exclude);
+    const hit = Object.values(this._load()).filter((it) => String(it.text || '').toLowerCase().includes(kw));
+    if (!hit.length) return null;
+    let pool = hit;
+    if (exclude && exclude.size) {
+      const rest = pool.filter((it) => !exclude.has(it));
+      if (rest.length) pool = rest;
+    }
+    return pool[Math.floor(Math.random() * pool.length)] || null;
+  }
+
+  /**
+   * 同上，但本地素材库挑不到时去在线图库（梗鲸 DeepSeek娘）按描述找一张，
+   * 下载到本地缓存后作为 image 段发出。在线图库不可用时自动退化成文字回复。
+   * @returns {Promise<{text:string, stickers:Array}>}
+   */
+  async takeFromReplyAsync(reply) {
+    const { text, keywords } = this.parseReply(reply);
+    if (!keywords.length) return { text, stickers: [] };
+    const wants = keywords.slice(0, MAX_PER_REPLY);
+    if (keywords.length > MAX_PER_REPLY) {
+      this.log(`标记 ${keywords.length} 个，超过上限按 ${MAX_PER_REPLY} 个兑现`);
+    }
+    // 冷却期内连本地都不发，更不必去下载，先挡住省流量
+    if (this.cooling) {
+      this.log(`想发 ${wants.length} 个表情包「${wants.join('/') || '随机'}」但还在冷却（${Math.round(this._cooldownMs / 1000)}s），跳过`);
+      return { text, stickers: [] };
+    }
+
+    const picks = [];
+    const usedLocal = new Set();
+    const usedOnline = new Set();
+    const online = this.gallery && this.gallery.stats().count ? this.gallery : null;
+
+    // 先本地（同步、零网络），**严格匹配**命不中才去在线图库
+    const pending = [];
+    for (const kw of wants) {
+      const p = this.pickStrict(kw, usedLocal);
+      if (p) { picks.push(p); usedLocal.add(p); continue; }
+      if (online) pending.push(kw);
+    }
+
+    if (pending.length) {
+      const fetched = await Promise.all(pending.map(async (kw) => {
+        try {
+          // strict：关键词匹配不上就别硬塞一张无关图（随机标记 '' 仍会随机取）
+          const item = online.pick(kw, usedOnline, { strict: true });
+          if (!item) { this.log(`在线图库没有匹配「${kw}」的图`); return null; }
+          usedOnline.add(item);
+          const abs = await online.ensureLocal(item);
+          return { kind: 'image', file: abs, text: `${item.title}（在线图库 #${item.id}）`, galleryId: item.id };
+        } catch (e) {
+          this.log(`在线图库取图失败「${kw || '随机'}」：${e.message}`);
+          return null;
+        }
+      }));
+      for (const p of fetched) if (p) picks.push(p);
+    }
+
+    if (!picks.length) {
+      this.log(`标记「${keywords.join('/') || '随机'}」但本地和在线图库都没有可用素材，跳过`);
+      return { text, stickers: [] };
+    }
+    this._lastSentAt = Date.now();
+    return { text, stickers: picks };
   }
 
   /** 一个素材 → OneBot 段数组 */
@@ -286,7 +373,8 @@ class StickerLibrary {
     }
     // 有本地副本就发本地文件（QQ 图链会过期；本地路径真机验证可直发）
     if (pick.file) {
-      const abs = path.join(this.cacheDir, pick.file);
+      // 在线图库给的是绝对路径，素材库给的是 cacheDir 里的文件名
+      const abs = path.isAbsolute(String(pick.file)) ? String(pick.file) : path.join(this.cacheDir, pick.file);
       if (fs.existsSync(abs)) return [{ type: 'image', data: { file: abs } }];
     }
     return [{ type: 'image', data: { file: pick.url } }];
@@ -349,13 +437,26 @@ class StickerLibrary {
  * 自动追加在用户自己写的提示词之后——用户改人设不会弄丢这段，
  * AI 也因此明确知道：有这本事、怎么触发、什么时候该用什么时候别用。
  */
-const STICKER_ABILITY_PROMPT = `
+const MATERIAL_WITH_GALLERY = `素材有两处：群里大家发过的表情包，以及在线图库「梗鲸 · DeepSeek娘」——收录了几千张 DeepSeek 相关的表情图（开心、震惊、无语、摆烂、加油、睡觉、生气、害羞、求饶、摸鱼……各种情绪和动作都有）。关键词写情绪、动作或画面都行，系统会先翻群里的，翻不到再按描述去在线图库取一张。`;
+const MATERIAL_LOCAL_ONLY = `素材来自群里大家发过的表情包，关键词写情绪或画面都行，翻不到会自动换成随机一张。`;
+
+/**
+ * 拼出「表情包能力说明书」。
+ * @param {number} galleryCount 在线图库可用张数；0 表示图库不可用，只说群里的素材
+ */
+function buildStickerPrompt(galleryCount = 0) {
+  const material = galleryCount > 0 ? MATERIAL_WITH_GALLERY : MATERIAL_LOCAL_ONLY;
+  return `
 【表情包能力】
 你有发表情包的本领，会在聊天里根据情况自己发表情包：
-- 想发表情包时，在回复里写一个标记：[表情] 表示随机来一个；[表情:关键词] 表示按关键词挑（比如 [表情:笑]、[表情:猫]、[表情:哭]、[表情:无语]）。关键词来自群里大家发过的表情包的描述，匹配不到会自动换成随机。
+- 想发表情包时，在回复里写一个标记：[表情] 表示随机来一个；[表情:关键词] 表示按关键词挑（比如 [表情:笑]、[表情:猫]、[表情:哭]、[表情:无语]）。${material}
 - 标记不会显示给对方：系统收到你的回复后会自动把合适表情包发出去，并把标记从文字里删掉。标记写在想让表情包出现的那句话后面就行。
 - 什么时候发由你看着办：开心/无语/赞同/吐槽/安慰/接梗这种带情绪的场合就发，让聊天更生动；纯通知、严肃话题、正经道歉不要发；想连发就连续写标记（比如 [表情:笑][表情:笑][表情:笑] 三连很有节目效果），一条回复最多写三四个，别排一长串；大部分回复正常说话，别每条都带。
 - 有人明确要你发表情包（比如"发个表情包""来个表情"）时，一定要用标记回应——可以只回标记不带字，让表情包替你说话。
-- 表情库来自群友们平时发的表情包，风格由他们决定；不要编造标记以外的发送方式，QQ 自带的基础表情不在此列。`.trim();
+- 不要编造标记以外的发送方式，QQ 自带的基础表情不在此列。`.trim();
+}
 
-module.exports = { StickerLibrary, STICKER_ABILITY_PROMPT, MAX_PER_REPLY };
+// 兜底常量：图库数量未知时用（群友素材版），老代码引用它也不至于报错
+const STICKER_ABILITY_PROMPT = buildStickerPrompt(0);
+
+module.exports = { StickerLibrary, STICKER_ABILITY_PROMPT, buildStickerPrompt, MAX_PER_REPLY };

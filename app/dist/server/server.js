@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 /**
  * 网页版 QQ 服务端
  *   - 托管 public/ 静态页面
@@ -23,6 +23,7 @@ const { QQEngine } = require('./engine');
 const { Updater } = require('./updater');
 const { DeepSeekWeb, siteList } = require('./deepseek-web');
 const { StickerLibrary } = require('./stickers');
+const { OnlineGallery } = require('./sticker-gallery');
 
 /* ---------------- 日志系统：控制台实时显示 + data\app.log 持久落盘（追加、不截断） ---------------- */
 const _tsNow = () => {
@@ -145,6 +146,16 @@ const engine = new QQEngine({
   getConfig: () => configLib.get(),
   saveConfig: (patch) => configLib.save(patch)
 });
+// 扫码登录完成后台自动接上：换适配器 + 把状态推给网页，用户不用再点一次
+engine.onReady = (result) => {
+  try {
+    console.log(`[engine] 扫码登录完成：${result.login || result.info.account || '未知账号'} @ ${result.info.wsPort}`);
+    if (result.changed) rebuildAdapter('QQ 内核登录完成');
+    engine.status().then((st) => broadcast({ type: 'engine_status', engine: st })).catch(() => {});
+  } catch (err) {
+    console.warn('[engine] 登录后同步失败:', err.message);
+  }
+};
 
 const updater = new Updater({
   root: ROOT,
@@ -221,6 +232,15 @@ const stickerLib = new StickerLibrary({
   adapter,
   log: (t) => console.log(`[表情包] ${t}`)
 });
+
+// 在线表情图库（梗鲸 · DeepSeek娘）：群友素材里找不到时按描述现取一张。
+// 目录 7 天缓存一次；站点不可达就静默降级，不影响聊天。
+const gallery = new OnlineGallery({
+  dataDir: path.join(ROOT, 'data'),
+  cacheDir: stickerLib.cacheDir,
+  log: (t) => console.log(`[表情图库] ${t}`)
+});
+stickerLib.setGallery(gallery);
 
 const ai = new AIResponder({
   config: cfg.ai,
@@ -507,6 +527,24 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, result);
   }
 
+  /* 未登录时的登录二维码：直接从内置运行时的 cache 目录读，不落 data/、不缓存 */
+  if (p === '/api/engine/qr' && req.method === 'GET') {
+    const file = engine.qrFile(engine.lastInfo || {});
+    if (!file) return sendJson(res, 404, { error: '还没有生成二维码，先点「启动并同步」' });
+    try {
+      const buf = fs.readFileSync(file);
+      const st = fs.statSync(file);
+      if (Date.now() - st.mtimeMs > 5 * 60 * 1000) {
+        return sendJson(res, 410, { error: '二维码已过期，点「启动并同步」会重新生成' });
+      }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'Content-Length': buf.length });
+      res.end(buf);
+      return;
+    } catch {
+      return sendJson(res, 404, { error: '二维码读不到' });
+    }
+  }
+
   /* ---------------- 自动更新（只检查，下载/安装必须用户确认） ---------------- */
   if (p === '/api/update/check' && (req.method === 'GET' || req.method === 'POST')) {
     try {
@@ -666,24 +704,74 @@ if (p === '/api/qq/reconnect' && req.method === 'POST') {
   if (p === '/api/stickers/test' && req.method === 'POST') {
     const body = await readBody(req);
     const st = stickerLib.stats();
-    if (!st.count) {
-      return sendJson(res, 400, {
-        error: '素材库是空的——先给机器人丢几个表情包（私聊发给它、或在群里发），它会自动收藏，然后就能发了'
-      });
-    }
     // 测试发给"指令发送人"名单里的主人 QQ；没配就发给机器人自己
     const owner = String(configLib.get().ai?.commandSenders || '').split(/[,，;；\s]+/).filter(Boolean)[0];
     const target = owner || String(adapter.self?.userId || '');
     if (!target) return sendJson(res, 400, { error: 'QQ 未连接' });
     const kw = String(body.keyword || '').trim().slice(0, 24);
-    const pick = stickerLib.pick(kw);
+    // 本地严格匹配（有关键词就得真命中，不能拿随机图凑数）；空关键词才随机
+    let pick = stickerLib.pickStrict(kw);
+    let fromGallery = false;
+    if (!pick && gallery.stats().count) {
+      const item = gallery.pick(kw, null, { strict: true });
+      if (item) {
+        try {
+          const abs = await gallery.ensureLocal(item);
+          pick = { kind: 'image', file: abs, text: item.title, galleryId: item.id };
+          fromGallery = true;
+        } catch (e) {
+          return sendJson(res, 502, { error: '在线图库取图失败：' + e.message });
+        }
+      }
+    }
+    if (!pick) {
+      return sendJson(res, 400, {
+        error: st.count
+          ? `没有匹配「${kw}」的素材`
+          : '素材库和在线图库都没东西可发——先确认网络能连上梗鲸图库（点「刷新图库」），或给机器人丢几个表情包让它收藏'
+      });
+    }
     const okSend = await stickerLib.send({ type: 'private', targetId: target }, pick);
     if (!okSend) return sendJson(res, 500, { error: '发送失败（看日志：可能图链失效）' });
     return sendJson(res, 200, {
       ok: true,
+      fromGallery,
       sent: { kind: pick.kind, text: pick.text || pick.emojiId || '图片' },
       to: 'private:' + target
     });
+  }
+
+  /* ---------------- 在线表情图库 API ---------------- */
+  if (p === '/api/gallery' && req.method === 'GET') {
+    const u = new URL(req.url, 'http://localhost');
+    const kw = String(u.searchParams.get('q') || '').slice(0, 40);
+    const st = gallery.stats();
+    const items = gallery.list(kw, 60);
+    return sendJson(res, 200, { ok: true, ...st, items });
+  }
+
+  if (p === '/api/gallery/refresh' && req.method === 'POST') {
+    const r = await gallery.refresh(true);
+    return sendJson(res, r.ok ? 200 : 502, { ok: r.ok, ...gallery.stats(), error: r.error });
+  }
+
+  // 缩略图：先看本地缓存，没有就当场拉一次（面板浏览用，AI 发图不经过这里）
+  if (p === '/api/gallery/img' && req.method === 'GET') {
+    const id = String(new URL(req.url, 'http://localhost').searchParams.get('id') || '').replace(/\D/g, '');
+    const item = id && gallery.get(id);
+    if (!item) return sendJson(res, 404, { error: '没有这张图' });
+    let abs = gallery.cachedPath(id);
+    if (!abs) {
+      try { abs = await gallery.ensureLocal(item); } catch (e) { return sendJson(res, 502, { error: '取图失败：' + e.message }); }
+    }
+    const ext = String(abs).split('.').pop().toLowerCase();
+    const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[ext] || 'application/octet-stream';
+    fs.readFile(abs, (err, buf) => {
+      if (err) return sendJson(res, 404, { error: '本地副本不存在' });
+      res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'max-age=86400', 'Content-Length': buf.length });
+      res.end(buf);
+    });
+    return;
   }
 
   return sendJson(res, 404, { error: 'unknown api' });
@@ -784,11 +872,18 @@ async function startHttpServer() {
   console.log('--------------------------------------------------');
   adapter.connect();
 
+  // 在线表情图库：过期才真去拉，拉失败不影响任何聊天功能
+  setTimeout(() => { try { gallery.warm(); } catch { /* noop */ } }, 3000);
+
   // 群崽 QQ 内核：延迟一点启动，避免和网页/DeepSeek 抢启动资源。
   // 找到已运行的运行时就只同步配置；没运行才按它自己的入口启动。
   setTimeout(() => {
     engine.auto().then(async (result) => {
-      if (result.ok) {
+      if (result.ok && result.needLogin) {
+        // 首次使用：内核起来了但还没登录，3001 要等扫码后才会监听
+        console.log(`[engine] QQ 内核已启动，等待扫码登录：${result.loginUrl || ''}`);
+        broadcast({ type: 'engine_status', engine: await engine.status() });
+      } else if (result.ok) {
         console.log(`[engine] QQ 内核已就绪：${result.info.account || '未命名账号'} @ ${result.info.wsPort}`);
         if (result.changed) rebuildAdapter('QQ 内核自动同步');
         broadcast({ type: 'engine_status', engine: await engine.status() });

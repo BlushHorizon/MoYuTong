@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
@@ -22,7 +22,7 @@
         <span class="logo">◉</span>
         <span class="title">群崽 <em>QunZai</em></span>
         <span class="subtitle">QQ 智能体监控台</span>
-        <span class="version" id="appVersion">v1.4.8</span>
+        <span class="version" id="appVersion">v1.4.9</span>
       </div>
       <div class="topbar-right">
         <div class="pill" id="qqStatusPill" title="QQ 接入状态">
@@ -242,6 +242,13 @@
         </div>
         <div id="stickerList" class="sticker-list"></div>
 
+        <p class="tip">另外内置了一套在线表情图库（<a href="https://aigengtu.com/DeepSeek%E5%A8%98" target="_blank" rel="noopener">梗鲸 · DeepSeek娘</a>，约 2300 张）。群友素材里挑不到时，AI 会按关键词去这套图里找，用到哪张下哪张，只缓存在本机。图库来自第三方站点，不可达时自动跳过，不影响聊天。</p>
+        <div class="field" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="tip" id="galleryStats">在线图库：加载中…</span>
+          <button class="mini-btn" id="btnGalleryRefresh">刷新图库</button>
+        </div>
+        <div id="galleryList" class="sticker-list gallery-list"></div>
+
         <h4>QQ 接入</h4>
         <label class="field">
           <span>模式</span>
@@ -260,15 +267,23 @@
         </label>
         <p class="tip">保存后会自动按新地址重连 QQ，不用重启服务；若没连上，先用下面的「群崽 QQ 内核」自动检测并同步，或检查本机 OneBot 运行时是否已启动、端口是否一致。</p>
 
-        <h4>群崽 QQ 内核</h4>
-        <p class="tip">自动检测你本机已安装的兼容 OneBot 运行时，按它自己的入口启动，并读取它自己的 WS 端口和 Token 同步到群崽。不打包、不复制第三方运行时本体；界面和配置层是群崽自己的。</p>
+        <h4>监视器（QQ 运行时）</h4>
+        <p class="tip">「监视器」就是真正登录 QQ、把消息转成群崽能读的 OneBot 11 的那个程序。群崽自己不登录 QQ。安装包里已经内置了一份 NapCat，开箱即用；你也可以换成自己找的那一份。</p>
+        <label class="field">
+          <span>用哪一份</span>
+          <select id="setEngineSource">
+            <option value="bundled">内置的（随群崽安装，推荐）</option>
+            <option value="custom">我自己找的（填下面的目录）</option>
+            <option value="auto">自动：先找内置的，再找你自己的</option>
+          </select>
+        </label>
         <label class="field column">
-          <span>运行时目录（留空 = 自动扫描常见目录）</span>
+          <span>自定义目录（选「我自己找的」时生效）</span>
           <input type="text" id="setEngineDir" placeholder="例如 D:\你的OneBot运行时" />
         </label>
         <label class="field">
           <span>机器人 QQ（可选）</span>
-          <input type="text" id="setEngineAccount" placeholder="只选这个账号的 onebot_*.json，防止误用其他号" />
+          <input type="text" id="setEngineAccount" placeholder="只选这个账号的配置，防止误用其他号" />
         </label>
         <label class="field">
           <span>启动时自动检测</span>
@@ -278,8 +293,14 @@
         <div class="row-btns">
           <button class="mini-btn" id="btnEngineDetect">自动检测</button>
           <button class="mini-btn alt" id="btnEngineStart">启动并同步</button>
+          <button class="mini-btn" id="btnEngineWebui">打开它的管理面板</button>
           <button class="mini-btn danger-btn" id="btnEngineStop">停止本次启动</button>
         </div>
+        <div class="qr-box" id="engineQrBox" hidden>
+          <img id="engineQrImg" alt="登录二维码" />
+          <div class="qr-tip" id="engineQrTip">用小号在手机 QQ 上扫码登录，登录后这里会自动变成「运行中」</div>
+        </div>
+        <p class="tip">第一次用内置那份时，它会弹二维码让你扫码登录 QQ（只支持扫码，这是它的限制）。登录一次之后会记住，下次自动续上。</p>
 
         <h4>自动更新</h4>
         <label class="field column">
@@ -298,7 +319,7 @@
 
         <h4>关于与声明</h4>
         <div class="about-box">
-          <p><b>群崽 QunZai</b> <span id="aboutVersion">v1.4.8</span> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
+          <p><b>群崽 QunZai</b> <span id="aboutVersion">v1.4.9</span> · MIT 开源 · 创建于 2026 年 10 月 · 玩具级学习作品，非生产级产品</p>
           <p>· 本项目<b>不是反代、没有第三方中转、没有逆向 DeepSeek 网页</b>；原理是用 Node 连接本机浏览器调试端口（CDP）模拟操作，<b>这与反代一样均违反 DeepSeek 用户协议，账号可能被临时限制或封禁</b>。</p>
           <p>· 它会把 AI 生成的内容<b>自动发到 QQ</b>，无审核无黑名单，<b>请勿用于骚扰、刷屏、恶作剧，建议使用小号</b>。</p>
           <p>· 运行时会自动拉起 Edge 并连接调试端口，<b>可能被杀软误报为木马</b>；源码公开可自行审计，确认为误报请加白名单。</p>

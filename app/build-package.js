@@ -42,6 +42,29 @@ function copyDir(src, dst) {
     else fs.copyFileSync(s, d);
   }
 }
+/** 同 copyDir，但跳过**任意层级**的运行数据。
+ *  必须逐层递归排除：NapCat 的运行数据在 napcat/napcat/config/ 这种嵌套位置，
+ *  只排除顶层会把别人的 WebUI token 和二维码带进安装包（v1.4.9 踩过）。
+ *  config 目录不能整个删——里面有官方默认的 napcat.json；所以按文件名精确排除运行产物。 */
+const ENGINE_SKIP_DIRS = new Set(['data', 'logs', 'cache', 'plugins', 'session', 'temp']);
+const ENGINE_SKIP_FILES = [
+  /^webui\.json$/i,          // NapCat WebUI token / 密码哈希
+  /^onebot.*\.json$/i,       // NapCat / SnowLuma 的 OneBot 配置（含 accessToken、真实 QQ 号）
+  /^consent\.json$/i,        // SnowLuma 的 EULA 同意记录
+  /^qrcode.*\.(png|jpe?g|webp)$/i, // 扫码登录二维码 = 能直接登进别人的号
+  /\.log$/i,
+];
+function copyEngineDir(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    if (e.isDirectory() && ENGINE_SKIP_DIRS.has(e.name.toLowerCase())) continue;
+    if (e.isFile() && ENGINE_SKIP_FILES.some((re) => re.test(e.name))) continue;
+    const s = path.join(src, e.name);
+    const d = path.join(dst, e.name);
+    if (e.isDirectory()) copyEngineDir(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
 
 console.log('=== 1. 同步源码 → dist/ ===');
 fs.mkdirSync(DIST, { recursive: true });
@@ -96,6 +119,42 @@ for (const f of FILES) {
   fs.copyFileSync(src, path.join(DIST, f));
   n++;
   console.log('  ' + f);
+}
+
+/* 内置 QQ 监视器（可选）：把 engine-src/napcat 之类拷进 dist/engine/<name>。
+   只拷程序本体，绝不拷 config/ data/ logs/ —— 那里面有别人的 token 和登录态。
+   用 --with-engine 或默认「存在就带」；用 --no-engine 可以出瘦包。 */
+const ENGINE_SRC = path.join(ROOT, 'engine-src');
+const wantEngine = !process.argv.includes('--no-engine');
+if (wantEngine && fs.existsSync(ENGINE_SRC)) {
+  console.log('\n=== 1b. 内置 QQ 监视器 ===');
+  rmrf(path.join(DIST, 'engine'));
+  const engines = fs.readdirSync(ENGINE_SRC, { withFileTypes: true }).filter((e) => e.isDirectory());
+  for (const e of engines) {
+    const src = path.join(ENGINE_SRC, e.name);
+    const dst = path.join(DIST, 'engine', e.name);
+    // 排除运行数据：这些是打包机自己的，进包就是泄漏（规则见 copyEngineDir）
+    copyEngineDir(src, dst);
+    const bytes = (function w(d) {
+      let k = 0;
+      for (const x of fs.readdirSync(d, { withFileTypes: true })) {
+        k += x.isDirectory() ? w(path.join(d, x.name)) : fs.statSync(path.join(d, x.name)).size;
+      }
+      return k;
+    })(dst);
+    console.log(`  engine/${e.name}  (${(bytes / 1024 / 1024).toFixed(1)} MB，已排除 config/data/logs)`);
+    // 许可证必须随包附带
+    for (const lic of ['LICENSE', 'LICENSE.md', 'LICENSE.txt']) {
+      const p = path.join(src, lic);
+      if (fs.existsSync(p)) fs.copyFileSync(p, path.join(dst, lic));
+    }
+  }
+} else if (!wantEngine) {
+  console.log('\n=== 1b. 跳过内置监视器（--no-engine，出瘦包）===');
+  rmrf(path.join(DIST, 'engine'));
+} else {
+  console.log('\n=== 1b. 没有 engine-src/，出瘦包（不含内置监视器）===');
+  rmrf(path.join(DIST, 'engine'));
 }
 console.log('\n=== 2. 现生成 dist/config.json（唯一来源：DEFAULT_CONFIG + 出厂覆盖）===');
 const configLib = require(path.join(ROOT, 'server', 'config.js'));

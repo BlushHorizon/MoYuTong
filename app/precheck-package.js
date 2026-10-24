@@ -76,6 +76,9 @@ const PROFILE_DIR_NAMES = ['deepseek_profile', '.edge-audit', '.edge-dbg', '.edg
 /** dist/ 下的文档与代码：只扫「像真实凭据」的串 */
 function checkText(dir = DIST, depth = 0) {
   if (depth > 8) return;
+  // 内置的第三方监视器是别人的二进制/压缩代码，里面全是随机串和版本号，
+  // 扫它只会产生噪音；它自己的 config/data 已在打包时排除，另行由 checkEngine 检查。
+  if (path.resolve(dir).toLowerCase().startsWith(path.join(DIST, 'engine').toLowerCase())) return;
   let ents;
   try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
   for (const e of ents) {
@@ -139,6 +142,47 @@ if (fs.existsSync(dataDir)) {
   })(dataDir);
   if (n.length) problems.push(`dist/data/ 含 ${n.length} 个文件（应为空）：${n.slice(0, 3).map(f => path.relative(DIST, f)).join(', ')}…`);
 }
+
+/* 内置监视器（dist/engine）里绝不能带打包机的运行数据。
+ * 这些文件是 NapCat 跑起来后自己生成的：webui.json 有 WebUI token，
+ * onebot*.json 有 accessToken 和已填的 QQ 号，cache/qrcode.png 是登录二维码
+ * （扫一下就能登进别人的号），logs/ 有聊天记录。
+ * 注意它们在 napcat/napcat/config/ 这种**嵌套**位置，只查顶层会漏（v1.4.9 踩过）。 */
+const ENGINE_SKIP_DIRS = new Set(['data', 'logs', 'cache', 'plugins', 'session', 'temp']);
+const ENGINE_SECRET_FILES = [
+  { re: /^webui\.json$/i, why: 'WebUI 令牌 / 密码哈希' },
+  { re: /^onebot.*\.json$/i, why: 'OneBot 配置（含 accessToken、真实 QQ 号）' },
+  { re: /^consent\.json$/i, why: 'EULA 同意记录' },
+  { re: /^qrcode.*\.(png|jpe?g|webp)$/i, why: '登录二维码（可扫入他人账号）' },
+  { re: /\.log$/i, why: '运行日志' },
+];
+function checkEngine(dir = path.join(DIST, 'engine'), depth = 0) {
+  if (depth > 10) return;
+  let ents;
+  try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of ents) {
+    const p = path.join(dir, e.name);
+    const rel = path.relative(DIST, p);
+    if (e.isDirectory()) {
+      if (ENGINE_SKIP_DIRS.has(e.name.toLowerCase())) {
+        const files = [];
+        (function walk(d, k = 0) {
+          if (k > 6) return;
+          for (const x of fs.readdirSync(d, { withFileTypes: true })) {
+            if (x.isDirectory()) walk(path.join(d, x.name), k + 1); else files.push(path.join(d, x.name));
+          }
+        })(p);
+        problems.push(`${rel}  ::  内置监视器的运行目录「${e.name}」不该进包${files.length ? `（含 ${files.length} 个文件）` : ''}`);
+      }
+      checkEngine(p, depth + 1);
+      continue;
+    }
+    for (const s of ENGINE_SECRET_FILES) {
+      if (s.re.test(e.name)) { problems.push(`${rel}  ::  内置监视器带了${s.why}`); break; }
+    }
+  }
+}
+checkEngine();
 
 /* ---------------- 执行全部检查 ---------------- */
 if (!fs.existsSync(DIST)) { console.error('✗ 没有 dist/ 目录'); process.exit(1); }

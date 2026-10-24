@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 /**
  * 群崽 QunZai · 监控台前端
  * ---------------------------------------------------------------------------
@@ -404,14 +404,16 @@ async function openSettings() {
   // Token 只回后 4 位；留空保存 = 清除
   $('setToken').placeholder = data.qq?.onebot?.hasToken ? '留空 = 清除（当前已配置）' : '与 OneBot 运行时里填的一致，没有就留空';
   const eng = data.qq?.engine || {};
+  $('setEngineSource').value = eng.source || 'auto';
   $('setEngineDir').value = eng.dir || '';
   $('setEngineAccount').value = eng.account || '';
   $('setEngineAuto').checked = eng.autoStart !== false;
+  toggleEngineDir();
   refreshEngineStatus();
   const upd = data.update || {};
   $('setUpdateManifest').value = upd.manifestUrl || '';
   $('setUpdateAuto').checked = upd.autoCheck !== false;
-  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.8'}，未检查`;
+  $('updateStatus').textContent = `状态：当前 v${state.version || '1.4.9'}，未检查`;
   $('updateStatus').className = 'ds-status';
 
   // 回复对象：会话多选下拉（来自概览列表）
@@ -447,6 +449,7 @@ async function openSettings() {
     };
   } catch { /* 忽略 */ }
   refreshStickers();
+  refreshGallery();
   $('settingsModal').classList.remove('hidden');
 }
 
@@ -520,6 +523,47 @@ function testSticker() {
     });
 }
 
+/* ---------------- 在线表情图库 ---------------- */
+async function refreshGallery() {
+  const statsEl = $('galleryStats');
+  const listEl = $('galleryList');
+  if (!statsEl || !listEl) return;
+  try {
+    const r = await api('/api/gallery');
+    const age = r.ageDays === null ? '尚未拉取' : (r.ageDays === 0 ? '今天更新' : `${r.ageDays} 天前更新`);
+    statsEl.textContent = `在线图库：${r.count} 张（${r.source} · ${age}）` + (r.refreshing ? ' · 刷新中…' : '');
+    listEl.innerHTML = r.items.length
+      ? r.items.map((x) => `
+        <div class="sticker-row">
+          <img class="sticker-thumb" loading="lazy" src="/api/gallery/img?id=${encodeURIComponent(x.id)}" onerror="this.style.display='none'" alt="">
+          <span>${escapeHtml(x.title)}</span>
+          <small>${x.local ? '已缓存' : ''}</small>
+        </div>`).join('')
+      : '<div class="tip">图库目录是空的：点「刷新图库」拉一次；如果一直失败，可能是网络连不上梗鲸站点（不影响 AI 用群友素材发表情包）。</div>';
+  } catch (e) {
+    statsEl.textContent = '在线图库加载失败：' + e.message;
+  }
+}
+
+function refreshGalleryForce() {
+  const btn = $('btnGalleryRefresh');
+  btn.disabled = true;
+  btn.textContent = '拉取中…';
+  api('/api/gallery/refresh', { method: 'POST', body: '{}' })
+    .then((r) => {
+      btn.disabled = false;
+      btn.textContent = '刷新图库';
+      if (!r.ok) return uiAlert('拉取失败：' + (r.error || '未知原因'), { title: '在线图库', type: 'err' });
+      uiAlert(`✅ 图库已更新，共 ${r.count} 张`, { title: '在线图库', type: 'ok' });
+      refreshGallery();
+    })
+    .catch((e) => {
+      btn.disabled = false;
+      btn.textContent = '刷新图库';
+      uiAlert('拉取失败：' + e.message, { title: '在线图库', type: 'err' });
+    });
+}
+
 function openWebSite() {
   const btn = $('btnWebOpen');
   const site = $('setWebSite') ? $('setWebSite').value : 'deepseek';
@@ -538,21 +582,53 @@ function openWebSite() {
     });
 }
 
+function toggleEngineDir() {
+  const src = $('setEngineSource').value;
+  const wrap = $('setEngineDir').closest('label');
+  if (wrap) wrap.style.opacity = src === 'bundled' ? '.45' : '1';
+  $('setEngineDir').disabled = src === 'bundled';
+}
+
 async function refreshEngineStatus() {
   const el = $('engineStatus');
   if (!el) return;
   try {
     const r = await api('/api/engine/status');
-    const e = r.engine || {};
-    const who = e.account ? `账号 ${e.account}` : '未指定账号';
-    const where = e.dir ? `目录 ${e.dir}` : '未设置目录';
-    el.textContent = `状态：${e.running ? '运行中' : '未运行'} ｜ ${who} ｜ WS ${e.wsPort || '-'} ｜ ${where}` +
-      (e.lastError ? ` ｜ ${e.lastError}` : '');
-    el.className = 'ds-status ' + (e.running ? 'ok' : (e.lastError ? 'err' : 'warn'));
+    applyEngineStatus(r.engine || {});
   } catch (e) {
     el.textContent = '状态：读取失败 — ' + e.message;
     el.className = 'ds-status err';
   }
+}
+
+function applyEngineStatus(e) {
+  const el = $('engineStatus');
+  if (!el) return;
+  const who = e.account ? `账号 ${e.account}` : '未指定账号';
+  const from = e.kind ? `${e.kind === 'napcat' ? 'NapCat' : e.kind}` : '未知运行时';
+  const src = e.source === 'bundled' ? '内置' : (e.source === 'custom' ? '自定义' : '自动');
+  const where = e.dir ? e.dir : '未找到目录';
+  const state = e.running ? '运行中' : (e.needLogin ? '等你扫码登录' : '未运行');
+  el.textContent = `状态：${state} ｜ ${src}·${from} ｜ ${who} ｜ WS ${e.wsPort || '-'} ｜ ${where}` +
+    (e.lastError ? ` ｜ ${e.lastError}` : '');
+  el.className = 'ds-status ' + (e.running ? 'ok' : (e.lastError ? 'err' : 'warn'));
+  $('btnEngineWebui').style.display = e.webuiUrl ? '' : 'none';
+  // 没登录时才显示二维码；登录成功自动收起
+  if (e.needLogin) showEngineQr();
+  else hideEngineQr();
+}
+
+function showEngineQr() {
+  const box = $('engineQrBox');
+  if (!box) return;
+  const img = $('engineQrImg');
+  if (img) img.src = '/api/engine/qr?t=' + Date.now();
+  box.hidden = false;
+}
+
+function hideEngineQr() {
+  const box = $('engineQrBox');
+  if (box) box.hidden = true;
 }
 
 async function detectEngine() {
@@ -601,9 +677,16 @@ async function startEngine() {
     if (r.ok) {
       $('setEngineDir').value = r.info.dir;
       $('setEngineAccount').value = r.info.account || $('setEngineAccount').value;
-      $('engineStatus').textContent = `已同步：${r.started ? '本次已启动' : '复用已运行实例'} ｜ 账号 ${r.login || r.info.account || '未验证'} ｜ WS ${r.info.wsPort}`;
-      $('engineStatus').className = 'ds-status ok';
-      await refreshStatus();
+      if (r.needLogin) {
+        $('engineStatus').textContent = r.hint || '第一次登录要扫码：用手机 QQ 扫下面的码，登录后会自动接上';
+        $('engineStatus').className = 'ds-status warn';
+        showEngineQr();
+      } else {
+        $('engineStatus').textContent = `已同步：${r.started ? '本次已启动' : '复用已运行实例'} ｜ 账号 ${r.login || r.info.account || '未验证'} ｜ WS ${r.info.wsPort}`;
+        $('engineStatus').className = 'ds-status ok';
+        hideEngineQr();
+        await refreshStatus();
+      }
     } else {
       $('engineStatus').textContent = '启动失败：' + r.error;
       $('engineStatus').className = 'ds-status err';
@@ -631,6 +714,17 @@ async function stopEngine() {
     btn.disabled = false;
     btn.textContent = '停止本次启动';
     refreshEngineStatus();
+  }
+}
+
+async function openEngineWebui() {
+  try {
+    const r = await api('/api/engine/status');
+    const url = r.engine?.webuiUrl;
+    if (!url) return uiAlert('没有找到它的管理面板地址。确认它已经启动过一次（首次启动会生成配置）。');
+    window.open(url, '_blank', 'noopener');
+  } catch (e) {
+    uiAlert('打开失败：' + e.message);
   }
 }
 
@@ -754,6 +848,7 @@ async function saveSettings() {
         accessToken: $('setToken').value
       },
       engine: {
+        source: $('setEngineSource').value,
         dir: $('setEngineDir').value.trim(),
         account: $('setEngineAccount').value.trim(),
         autoStart: $('setEngineAuto').checked
@@ -854,6 +949,10 @@ function connectEvents() {
           at: evt.at || Date.now()
         });
         break;
+      case 'engine_status':
+        // 扫码登录完成 / 内核退出，状态灯和二维码跟着变，用户不用手动刷新
+        if (evt.engine) applyEngineStatus(evt.engine);
+        break;
     }
   };
   es.onerror = () => { /* EventSource 自动重连 */ };
@@ -901,6 +1000,8 @@ function init() {
   $('btnEngineDetect').addEventListener('click', detectEngine);
   $('btnEngineStart').addEventListener('click', startEngine);
   $('btnEngineStop').addEventListener('click', stopEngine);
+  $('btnEngineWebui').addEventListener('click', openEngineWebui);
+  $('setEngineSource').addEventListener('change', toggleEngineDir);
   $('btnUpdateCheck').addEventListener('click', () => checkUpdate(true));
   $('btnDsExpand').addEventListener('click', showDeepSeekTab);
   $('btnDsOpen').addEventListener('click', async (e) => {
@@ -963,6 +1064,7 @@ function init() {
   // 表情包
   $('btnStickerTest').addEventListener('click', testSticker);
   $('btnStickerClear').addEventListener('click', clearStickers);
+  if ($('btnGalleryRefresh')) $('btnGalleryRefresh').addEventListener('click', refreshGalleryForce);
   $('btnWebOpen').addEventListener('click', openWebSite);
 
   refreshStatus().catch(() => {});

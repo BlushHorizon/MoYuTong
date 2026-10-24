@@ -862,6 +862,23 @@ namespace QunZai
 
         private static string FindNode()
         {
+            // 优先用安装包内置的 Node（随内置 QQ 监视器一起来的那份），
+            // 这样用户不用自己装 Node.js，双击就能跑。
+            try
+            {
+                string root = AppDomain.CurrentDomain.BaseDirectory;
+                string[] bundled =
+                {
+                    Path.Combine(root, "engine", "napcat", "node.exe"),
+                    Path.Combine(root, "engine", "snowluma", "node.exe")
+                };
+                foreach (string exe in bundled)
+                {
+                    if (File.Exists(exe)) return exe;
+                }
+            }
+            catch { }
+
             string pathValue = Environment.GetEnvironmentVariable("PATH") ?? "";
             foreach (string part in pathValue.Split(Path.PathSeparator))
             {

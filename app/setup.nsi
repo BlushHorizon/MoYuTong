@@ -14,7 +14,7 @@ SetCompressor /SOLID lzma
 !define REGKEY "Software\QunZai"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QunZai"
 !ifndef VERSION
-  !define VERSION "1.4.8"
+  !define VERSION "1.4.9"
 !endif
 
 Name "${APPNAME}"
@@ -64,9 +64,19 @@ Section "主程序" SecMain
   ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\stop-service.ps1" -Root "$INSTDIR"' $0
 
   ; ---------- Node.js 检测（22+；网页驱动依赖内置 WebSocket） ----------
-  nsExec::ExecToStack 'cmd /c node -e "process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)"'
-  Pop $0
-  Pop $1
+  ; 安装包里带了内置监视器（含 node.exe）时就不用再要求用户装 Node。
+  ; 注意：这里必须是编译期判断（!if），运行期 $INSTDIR 里还没有解出文件。
+  !if /FileExists "dist\engine\napcat\node.exe"
+    StrCpy $0 "0"
+  !else
+    !if /FileExists "dist\engine\snowluma\node.exe"
+      StrCpy $0 "0"
+    !else
+      nsExec::ExecToStack 'cmd /c node -e "process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)"'
+      Pop $0
+      Pop $1
+    !endif
+  !endif
   StrCmp $0 "0" nodeOk 0
   MessageBox MB_ICONEXCLAMATION|MB_YESNO \
     "未检测到 Node.js 22+（本程序需要 Node.js 22 或更高版本才能运行）。$\r$\n建议先到 https://nodejs.org 安装 LTS 版，再安装本程序。$\r$\n仍要继续安装吗？" \
@@ -98,6 +108,10 @@ Section "主程序" SecMain
   File /r "dist\public"
   File /r "dist\assets"
   File /r "dist\desktop"
+  ; 内置 QQ 监视器（NapCat 等）：存在才打进去，瘦包这里没有 dist\engine
+  !if /FileExists "dist\engine"
+    File /r "dist\engine"
+  !endif
   ; 旧版独立的开启/关闭入口已合并进桌面宿主，升级时清理
   Delete "$INSTDIR\开启.bat"
   Delete "$INSTDIR\关闭.bat"
